@@ -13,6 +13,14 @@ struct RecordEditorView: View {
     @State private var exportErrorMessage: String?
     @State private var exportURL: URL?
 
+    @Environment(\.dismiss) private var dismiss
+
+    /// Allow callers to request that the editor starts in editing mode.
+    init(record: MedicalRecord, startEditing: Bool = false) {
+        self._record = .init(wrappedValue: record)
+        self._isEditing = State(initialValue: startEditing)
+    }
+
     var body: some View {
         Group {
             if isEditing {
@@ -38,18 +46,14 @@ struct RecordEditorView: View {
             RecordEditorSectionPersonal(record: record, onChange: touch)
             RecordEditorSectionEmergency(record: record, onChange: touch)
 
-            if !record.isPet {
-                RecordEditorSectionBlood(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionDrugs(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionVaccinations(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionAllergies(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionIllnesses(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionMedicalDocuments(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionMedicalHistory(modelContext: modelContext, record: record, onChange: touch)
-                RecordEditorSectionRisks(modelContext: modelContext, record: record, onChange: touch)
-            } else {
-                RecordEditorSectionWeight(modelContext: modelContext, record: record, onChange: touch)
-            }
+            RecordEditorSectionBlood(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionDrugs(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionVaccinations(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionAllergies(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionIllnesses(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionMedicalDocuments(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionMedicalHistory(modelContext: modelContext, record: record, onChange: touch)
+            RecordEditorSectionRisks(modelContext: modelContext, record: record, onChange: touch)
 
             if let exportErrorMessage {
                 Section {
@@ -97,18 +101,6 @@ struct RecordEditorView: View {
             RecordViewerSectionPersonal(record: record)
         case .emergency:
             RecordViewerSectionEmergency(record: record)
-        case .blood:
-            RecordViewerSectionEntries(
-                title: "Blood Values",
-                columns: ["Date", "Value", "Comment"],
-                rows: record.blood.map { entry in
-                    [
-                        entry.date?.formatted(date: .abbreviated, time: .omitted) ?? "—",
-                        entry.name,
-                        entry.comment
-                    ]
-                }
-            )
         case .weight:
             RecordViewerSectionEntries(
                 title: "Weight",
@@ -117,6 +109,18 @@ struct RecordEditorView: View {
                     [
                         entry.date?.formatted(date: .abbreviated, time: .omitted) ?? "—",
                         String(format: "%.1f", entry.weightKg),
+                        entry.comment
+                    ]
+                }
+            )
+        case .blood:
+            RecordViewerSectionEntries(
+                title: "Blood Values",
+                columns: ["Date", "Value", "Comment"],
+                rows: record.blood.map { entry in
+                    [
+                        entry.date?.formatted(date: .abbreviated, time: .omitted) ?? "—",
+                        entry.name,
                         entry.comment
                     ]
                 }
@@ -232,7 +236,12 @@ struct RecordEditorView: View {
     }
 
     private var displayName: String {
-        return record.displayName
+        let family = record.personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let given = record.personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if family.isEmpty && given.isEmpty {
+            return "Medical Record"
+        }
+        return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private func touch() {
@@ -244,7 +253,22 @@ struct RecordEditorView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup {
             Button(isEditing ? "Done" : "Edit") {
-                isEditing.toggle()
+                if isEditing {
+                    // Finish editing: update timestamp, ensure the record is in the context, persist, then dismiss.
+                    record.updatedAt = Date()
+                    // Ensure the record is part of the modelContext. Inserting an object that's already
+                    // in the context is a no-op, so this is safe and ensures detached objects get saved.
+                    modelContext.insert(record)
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        // intentionally silent (no logging)
+                    }
+                    dismiss()
+                } else {
+                    // Enter editing mode
+                    isEditing = true
+                }
             }
 
             Menu {

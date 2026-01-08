@@ -1,8 +1,9 @@
-import Foundation
+ import Foundation
 
 enum RecordSection: String, CaseIterable, Identifiable {
     case personal
     case emergency
+    case weight
     case blood
     case drugs
     case vaccinations
@@ -11,7 +12,6 @@ enum RecordSection: String, CaseIterable, Identifiable {
     case medicalDocuments
     case medicalHistory
     case risks
-    case weight
 
     var id: String { rawValue }
 
@@ -19,6 +19,7 @@ enum RecordSection: String, CaseIterable, Identifiable {
         switch self {
         case .personal: return "Personal"
         case .emergency: return "Emergency"
+        case .weight: return "Weight"
         case .blood: return "Blood"
         case .drugs: return "Medications"
         case .vaccinations: return "Vaccinations"
@@ -27,7 +28,6 @@ enum RecordSection: String, CaseIterable, Identifiable {
         case .medicalDocuments: return "Documents"
         case .medicalHistory: return "History"
         case .risks: return "Risks"
-        case .weight: return "Weight"
         }
     }
 
@@ -35,6 +35,7 @@ enum RecordSection: String, CaseIterable, Identifiable {
         switch self {
         case .personal: return "person.text.rectangle"
         case .emergency: return "cross.case"
+        case .weight: return "scalemass"
         case .blood: return "drop"
         case .drugs: return "pills"
         case .vaccinations: return "syringe"
@@ -43,7 +44,6 @@ enum RecordSection: String, CaseIterable, Identifiable {
         case .medicalDocuments: return "doc.text"
         case .medicalHistory: return "clock.arrow.circlepath"
         case .risks: return "exclamationmark.triangle"
-        case .weight: return "scalemass"
         }
     }
 }

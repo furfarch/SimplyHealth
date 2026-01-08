@@ -6,11 +6,7 @@ final class MedicalRecord {
     var createdAt: Date
     var updatedAt: Date
 
-    // Record type
-    var isPet: Bool
-
-    // Personal Information
-    // Legacy human fields (kept for backward compatibility)
+    // Personal Information (human)
     var personalFamilyName: String
     var personalGivenName: String
     var personalNickName: String
@@ -22,23 +18,12 @@ final class MedicalRecord {
     var personalHealthInsuranceNumber: String
     var personalEmployer: String
 
-    // New pet-friendly fields (kept alongside legacy fields)
-    var personalName: String
-    var personalAnimalID: String
-    var ownerName: String
-    var ownerPhone: String
-    var ownerEmail: String
-
-    // Emergency Contact(s)
-    // Legacy single contact fields are kept for migration/backward compatibility
+    // Legacy single emergency contact fields (kept for backward compatibility)
     var emergencyName: String
     var emergencyNumber: String
     var emergencyEmail: String
 
-    // New: multiple emergency contacts
-    @Relationship(deleteRule: .cascade, inverse: \EmergencyContact.record)
-    var emergencyContacts: [EmergencyContact]
-
+    // Relationships (existing ones)
     @Relationship(deleteRule: .cascade, inverse: \BloodEntry.record)
     var blood: [BloodEntry]
 
@@ -63,15 +48,15 @@ final class MedicalRecord {
     @Relationship(deleteRule: .cascade, inverse: \MedicalDocumentEntry.record)
     var medicaldocument: [MedicalDocumentEntry]
 
-    // New: weights for pets (and humans if desired)
     @Relationship(deleteRule: .cascade, inverse: \WeightEntry.record)
     var weights: [WeightEntry]
+
+    @Relationship(deleteRule: .cascade, inverse: \EmergencyContact.record)
+    var emergencyContacts: [EmergencyContact]
 
     init(
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        isPet: Bool = false,
-        // Legacy human initializer params
         personalFamilyName: String = "",
         personalGivenName: String = "",
         personalNickName: String = "",
@@ -82,17 +67,9 @@ final class MedicalRecord {
         personalHealthInsurance: String = "",
         personalHealthInsuranceNumber: String = "",
         personalEmployer: String = "",
-        // New pet-friendly params
-        personalName: String = "",
-        personalAnimalID: String = "",
-        ownerName: String = "",
-        ownerPhone: String = "",
-        ownerEmail: String = "",
-        // Emergency
         emergencyName: String = "",
         emergencyNumber: String = "",
         emergencyEmail: String = "",
-        // Relationships
         blood: [BloodEntry] = [],
         drugs: [DrugEntry] = [],
         vaccinations: [VaccinationEntry] = [],
@@ -101,13 +78,11 @@ final class MedicalRecord {
         risks: [RiskEntry] = [],
         medicalhistory: [MedicalHistoryEntry] = [],
         medicaldocument: [MedicalDocumentEntry] = [],
-        emergencyContacts: [EmergencyContact] = [],
-        weights: [WeightEntry] = []
+        weights: [WeightEntry] = [],
+        emergencyContacts: [EmergencyContact] = []
     ) {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-
-        self.isPet = isPet
 
         self.personalFamilyName = personalFamilyName
         self.personalGivenName = personalGivenName
@@ -120,17 +95,9 @@ final class MedicalRecord {
         self.personalHealthInsuranceNumber = personalHealthInsuranceNumber
         self.personalEmployer = personalEmployer
 
-        self.personalName = personalName
-        self.personalAnimalID = personalAnimalID
-        self.ownerName = ownerName
-        self.ownerPhone = ownerPhone
-        self.ownerEmail = ownerEmail
-
         self.emergencyName = emergencyName
         self.emergencyNumber = emergencyNumber
         self.emergencyEmail = emergencyEmail
-
-        self.emergencyContacts = emergencyContacts
 
         self.blood = blood
         self.drugs = drugs
@@ -140,22 +107,38 @@ final class MedicalRecord {
         self.risks = risks
         self.medicalhistory = medicalhistory
         self.medicaldocument = medicaldocument
-
         self.weights = weights
+        self.emergencyContacts = emergencyContacts
     }
 
-    // Computed display name used by the UI
-    var displayName: String {
-        if isPet {
-            let name = personalName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Medical Record" : name
-        } else {
-            let family = personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let given = personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if family.isEmpty && given.isEmpty {
-                return "Medical Record"
-            }
-            return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-        }
+    // Pet-related accessors (computed) — map to existing persisted fields so no schema change is required.
+    var isPet: Bool {
+        get { personalEmployer == "IS_PET" }
+        set { personalEmployer = newValue ? "IS_PET" : "" }
+    }
+
+    var personalName: String {
+        get { personalNickName }
+        set { personalNickName = newValue }
+    }
+
+    var personalAnimalID: String {
+        get { personalSocialSecurityNumber }
+        set { personalSocialSecurityNumber = newValue }
+    }
+
+    var ownerName: String {
+        get { personalFamilyName }
+        set { personalFamilyName = newValue }
+    }
+
+    var ownerPhone: String {
+        get { personalHealthInsuranceNumber }
+        set { personalHealthInsuranceNumber = newValue }
+    }
+
+    var ownerEmail: String {
+        get { emergencyEmail }
+        set { emergencyEmail = newValue }
     }
 }

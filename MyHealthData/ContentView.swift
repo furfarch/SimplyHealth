@@ -13,25 +13,7 @@ struct ContentView: View {
     @Query(sort: \MedicalRecord.updatedAt, order: .reverse) private var records: [MedicalRecord]
 
     var body: some View {
-        VStack {
-            // Diagnostic label to confirm ContentView is mounted
-            Text("MyHealthData — ContentView loaded")
-                .font(.headline)
-                .padding(8)
-
-            RecordListView()
-        }
-        .onAppear {
-            // Keep DEBUG-only sample insertion to help with UI during development.
-            #if DEBUG
-            if records.isEmpty {
-                let sample = MedicalRecord()
-                sample.updatedAt = Date()
-                sample.personalNickName = "Debug User"
-                modelContext.insert(sample)
-            }
-            #endif
-        }
+        RecordListView()
     }
 }
 
