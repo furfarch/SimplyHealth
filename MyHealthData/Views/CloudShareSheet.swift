@@ -2,10 +2,6 @@ import SwiftUI
 import CloudKit
 import UIKit
 
-/// Minimal UI to create a CKShare for a MedicalRecord.
-///
-/// This is a SwiftUI-only MVP: it creates the share and then shows the share URL.
-/// (A full UICloudSharingController integration can be added next.)
 struct CloudShareSheet: View {
     let record: MedicalRecord
 
