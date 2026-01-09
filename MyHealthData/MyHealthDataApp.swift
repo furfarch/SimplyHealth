@@ -39,7 +39,8 @@ struct MyHealthDataApp: App {
         do {
             self.modelContainer = try ModelContainer(for: schema, configurations: [localConfig])
         } catch {
-            // Development-friendly fallback: run with an in-memory store if the on-disk store is incompatible.
+            // LOG THE ERROR so we know why persistent store failed
+            print("[MyHealthDataApp] Failed to create persistent ModelContainer: \(error)")
             let memoryConfig = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: true,
