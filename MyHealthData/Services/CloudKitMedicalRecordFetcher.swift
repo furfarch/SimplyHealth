@@ -3,8 +3,8 @@ import CloudKit
 import SwiftData
 import Combine
 
-/// Fetches MedicalRecord records from CloudKit (private database by default).
 @MainActor
+/// Fetches MedicalRecord records from CloudKit (private database by default).
 class CloudKitMedicalRecordFetcher: ObservableObject {
     @Published var records: [CKRecord] = []
     @Published var error: Error?
@@ -31,26 +31,20 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         let operation = CKQueryOperation(query: query)
         var fetched: [CKRecord] = []
-        operation.recordMatchedBlock = { recordID, result in
-            switch result {
-            case .success(let record):
-                fetched.append(record)
-            case .failure(let err):
-                print("CloudKit fetch error for recordID \(recordID): \(err)")
-            }
+        operation.recordFetchedBlock = { record in
+            fetched.append(record)
         }
-        operation.queryResultBlock = { [weak self] result in
+        operation.queryCompletionBlock = { [weak self] _, err in
             DispatchQueue.main.async {
                 self?.isLoading = false
-                switch result {
-                case .success:
+                if let err = err {
+                    self?.error = err
+                } else {
                     self?.records = fetched
                     // Automatic import to SwiftData for true sync
                     if let context = self?.modelContext {
                         self?.importToSwiftData(context: context)
                     }
-                case .failure(let err):
-                    self?.error = err
                 }
             }
         }
@@ -59,6 +53,9 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
 
     /// Import fetched CKRecords into the local SwiftData store as MedicalRecord objects.
     func importToSwiftData(context: ModelContext) {
+        // Build set of UUIDs present in CloudKit
+        let cloudUUIDs: Set<String> = Set(records.compactMap { $0["uuid"] as? String })
+
         for ckRecord in records {
             guard let uuid = ckRecord["uuid"] as? String else { continue }
             // Try to find an existing record by uuid
@@ -78,7 +75,12 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
             record.personalHealthInsurance = ckRecord["personalHealthInsurance"] as? String ?? ""
             record.personalHealthInsuranceNumber = ckRecord["personalHealthInsuranceNumber"] as? String ?? ""
             record.personalEmployer = ckRecord["personalEmployer"] as? String ?? ""
-            record.isPet = ckRecord["isPet"] as? Bool ?? false
+            // 'isPet' in your model may be Bool or Int; try Bool then Number
+            if let boolVal = ckRecord["isPet"] as? Bool {
+                record.isPet = boolVal
+            } else if let num = ckRecord["isPet"] as? NSNumber {
+                record.isPet = num.boolValue
+            }
             record.personalName = ckRecord["personalName"] as? String ?? ""
             record.personalAnimalID = ckRecord["personalAnimalID"] as? String ?? ""
             record.ownerName = ckRecord["ownerName"] as? String ?? ""
@@ -93,6 +95,22 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
                 context.insert(record)
             }
         }
-        try? context.save()
+
+        // Handle remote deletions: for local records that are marked cloud-enabled but their uuid is missing in CloudKit,
+        // clear cloud flags so they remain local-only (safer than automatic deletion).
+        do {
+            let cloudEnabledFetch = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.isCloudEnabled == true })
+            let localCloudRecords = try context.fetch(cloudEnabledFetch)
+            for local in localCloudRecords {
+                if !cloudUUIDs.contains(local.uuid) {
+                    // remote deleted — keep local data but disable cloud sync for this record
+                    local.isCloudEnabled = false
+                    local.cloudRecordName = nil
+                }
+            }
+            try context.save()
+        } catch {
+            print("Failed to reconcile remote deletions: \(error)")
+        }
     }
 }

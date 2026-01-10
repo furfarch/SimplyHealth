@@ -1,12 +1,10 @@
 import SwiftUI
 import SwiftData
-import CloudKit
 
 struct RecordListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MedicalRecord.updatedAt, order: .reverse) private var records: [MedicalRecord]
 
-    @StateObject private var cloudKitFetcher = CloudKitMedicalRecordFetcher()
     @State private var activeRecord: MedicalRecord? = nil
     @State private var showEditor: Bool = false
     @State private var startEditing: Bool = false
@@ -43,25 +41,6 @@ struct RecordListView: View {
                     }
                     .onDelete(perform: deleteRecords)
                 }
-                // CloudKit section (for debug/status only)
-                Section(header: Text("CloudKit Sync Status")) {
-                    if cloudKitFetcher.isLoading {
-                        ProgressView("Syncing with iCloud...")
-                    } else if let error = cloudKitFetcher.error {
-                        Text("CloudKit error: \(error.localizedDescription)")
-                            .foregroundStyle(.red)
-                    } else {
-                        Text("CloudKit sync complete.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("Reload from iCloud") {
-                        cloudKitFetcher.fetchAll()
-                    }
-                }
-            }
-            .onAppear {
-                cloudKitFetcher.setModelContext(modelContext)
-                cloudKitFetcher.fetchAll()
             }
             .navigationTitle("MyHealthData")
             .toolbar {
@@ -137,11 +116,20 @@ struct RecordListView: View {
     }
 
     private func deleteRecords(at offsets: IndexSet) {
-        for index in offsets {
-            let record = records[index]
-            modelContext.delete(record)
-        }
         Task { @MainActor in
+            // delete in reverse index order
+            for index in offsets.sorted(by: >) {
+                let record = records[index]
+                if record.isCloudEnabled {
+                    do {
+                        try await CloudSyncService.shared.deleteCloudRecord(for: record)
+                    } catch {
+                        // record cloud delete failed; surface error but continue with local deletion
+                        saveErrorMessage = "Cloud delete failed: \(error.localizedDescription)"
+                    }
+                }
+                modelContext.delete(record)
+            }
             do { try modelContext.save() }
             catch { saveErrorMessage = "Delete failed: \(error.localizedDescription)" }
         }

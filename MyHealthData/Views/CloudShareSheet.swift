@@ -1,14 +1,24 @@
 import SwiftUI
 import CloudKit
+
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct CloudShareSheet: View {
     let record: MedicalRecord
 
     @Environment(\.dismiss) private var dismiss
-    @State private var showShareSheet = false
+
+    @State private var isBusy = false
     @State private var errorMessage: String?
+
+    #if canImport(UIKit)
+    @State private var showShareSheet = false
     @State private var shareController: UICloudSharingController?
+    #else
+    @State private var shareURL: URL?
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -19,72 +29,108 @@ struct CloudShareSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
+                #if canImport(UIKit)
                 if let errorMessage {
-                    Section("Error") {
-                        Text(errorMessage)
-                            .foregroundStyle(.red)
-                    }
+                    Section("Error") { Text(errorMessage).foregroundStyle(.red) }
                 }
 
                 Section {
                     Button {
-                        Task { await presentShareSheet() }
+                        Task { await presentShareSheet_iOS() }
                     } label: {
-                        Text("Share Record")
+                        if isBusy { ProgressView() } else { Text("Share Record") }
                     }
                 }
+                .background(
+                    ShareSheetPresenter(controller: $shareController, isPresented: $showShareSheet)
+                )
+                #else
+                if let shareURL {
+                    Section("Share") {
+                        Text(shareURL.absoluteString)
+                            .font(.footnote)
+                            .textSelection(.enabled)
+                        Button("Copy Link") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(shareURL.absoluteString, forType: .string)
+                        }
+                    }
+                }
+
+                if let errorMessage {
+                    Section("Error") { Text(errorMessage).foregroundStyle(.red) }
+                }
+
+                Section {
+                    Button {
+                        Task { await createShare_mac() }
+                    } label: {
+                        if isBusy { ProgressView() } else { Text("Create Share") }
+                    }
+                }
+                #endif
             }
             .navigationTitle("Share Record")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-            .background(
-                ShareSheetPresenter(controller: $shareController, isPresented: $showShareSheet)
-            )
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
     }
 
+    // MARK: - iOS flow
+    #if canImport(UIKit)
     @MainActor
-    private func presentShareSheet() async {
+    private func presentShareSheet_iOS() async {
         errorMessage = nil
+        isBusy = true
+        defer { isBusy = false }
         do {
-            let shareController = try await CloudSyncService.shared.makeCloudSharingController(for: record) { result in
+            let controller = try await CloudSyncService.shared.makeCloudSharingController(for: record) { result in
                 DispatchQueue.main.async {
                     self.showShareSheet = false
                     switch result {
                     case .success:
-                        self.errorMessage = nil // Sharing completed or stopped
-                    case .failure(let error):
-                        self.errorMessage = error.localizedDescription
+                        self.errorMessage = nil
+                    case .failure(let err):
+                        self.errorMessage = err.localizedDescription
                     }
                 }
             }
-            self.shareController = shareController
-            self.showShareSheet = true
+            shareController = controller
+            showShareSheet = true
         } catch {
             errorMessage = error.localizedDescription
         }
     }
-}
 
-struct ShareSheetPresenter: UIViewControllerRepresentable {
-    @Binding var controller: UICloudSharingController?
-    @Binding var isPresented: Bool
-
-    func makeUIViewController(context: Context) -> UIViewController {
-        let vc = UIViewController()
-        vc.view.backgroundColor = .clear
-        return vc
-    }
-
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        guard isPresented, let controller else { return }
-        if uiViewController.presentedViewController == nil {
-            uiViewController.present(controller, animated: true) {
-                isPresented = false
+    struct ShareSheetPresenter: UIViewControllerRepresentable {
+        @Binding var controller: UICloudSharingController?
+        @Binding var isPresented: Bool
+        func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
+        func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+            guard isPresented, let controller else { return }
+            if uiViewController.presentedViewController == nil {
+                uiViewController.present(controller, animated: true) { isPresented = false }
             }
         }
     }
+    #endif
+
+    // MARK: - macOS fallback
+    #if os(macOS)
+    @MainActor
+    private func createShare_mac() async {
+        errorMessage = nil
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let share = try await CloudSyncService.shared.createShare(for: record)
+            if let url = share.url {
+                shareURL = url
+            } else {
+                errorMessage = "Share created but no URL available. Check iCloud account and container schema."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    #endif
 }
