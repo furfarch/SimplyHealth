@@ -31,35 +31,39 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         let operation = CKQueryOperation(query: query)
         var fetched: [CKRecord] = []
-        // Serial queue to protect access to `fetched` from concurrent callbacks
-        let fetchQueue = DispatchQueue(label: "com.myhealthdata.cloudkit.fetchQueue")
+
+        // Use recordMatchedBlock to receive per-record results (surfaces per-record errors)
         operation.recordMatchedBlock = { matchedID, matchedResult in
             switch matchedResult {
             case .success(let record):
-                fetchQueue.sync { fetched.append(record) }
-            case .failure(let recError):
-                // Surface per-record errors to the published error (on main thread)
-                DispatchQueue.main.async { [weak self] in
-                    self?.error = recError
+                fetched.append(record)
+            case .failure(let recErr):
+                // Surface per-record errors to the published error property on main
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.error = recErr
                 }
             }
         }
 
-        operation.queryResultBlock = { result in
-            DispatchQueue.main.async { [weak self] in
-                self?.isLoading = false
+        // Use queryResultBlock to handle overall completion and possible errors
+        operation.queryResultBlock = { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isLoading = false
                 switch result {
                 case .success(_):
-                    // Assign fetched records and import into SwiftData
-                    self?.records = fetchQueue.sync { fetched }
-                    if let context = self?.modelContext {
-                        self?.importToSwiftData(context: context)
+                    self.records = fetched
+                    // Automatic import to SwiftData for true sync
+                    if let context = self.modelContext {
+                        self.importToSwiftData(context: context)
                     }
                 case .failure(let err):
-                    self?.error = err
+                    self.error = err
                 }
             }
         }
+
         database.add(operation)
     }
 
