@@ -100,7 +100,7 @@ final class CloudSyncService {
 
     // MARK: - UICloudSharingController Integration
 
-    func makeCloudSharingController(for record: MedicalRecord) async throws -> UICloudSharingController {
+    func makeCloudSharingController(for record: MedicalRecord, onComplete: @escaping (Result<URL?, Error>) -> Void) async throws -> UICloudSharingController {
         let recordName = record.cloudRecordName ?? record.uuid
         let rootID = CKRecord.ID(recordName: recordName)
         let container = CKContainer(identifier: containerIdentifier)
@@ -129,9 +129,11 @@ final class CloudSyncService {
             self.database.add(modify)
         }
 
+        let delegate = CloudSharingDelegate()
+        delegate.onComplete = onComplete
         let controller = UICloudSharingController(share: share, container: container)
         controller.availablePermissions = [.allowReadWrite, .allowPrivate]
-        controller.delegate = CloudSharingDelegate()
+        controller.delegate = delegate
         controller.modalPresentationStyle = .formSheet
         controller.title = "Shared Medical Record"
         return controller
@@ -178,14 +180,19 @@ final class CloudSyncService {
 }
 
 class CloudSharingDelegate: NSObject, UICloudSharingControllerDelegate {
+    var onComplete: ((Result<URL?, Error>) -> Void)?
+
     func cloudSharingController(_ c: UICloudSharingController, failedToSaveShareWithError error: Error) {
         print("CloudKit sharing failed: \(error)")
+        onComplete?(.failure(error))
     }
     func cloudSharingControllerDidSaveShare(_ c: UICloudSharingController) {
         print("CloudKit share saved: \(String(describing: c.share?.url))")
+        onComplete?(.success(c.share?.url))
     }
     func cloudSharingControllerDidStopSharing(_ c: UICloudSharingController) {
         print("CloudKit sharing stopped")
+        onComplete?(.success(nil))
     }
     func itemTitle(for c: UICloudSharingController) -> String? { "Shared Medical Record" }
     func itemThumbnailData(for c: UICloudSharingController) -> Data? { nil }

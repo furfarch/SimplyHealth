@@ -50,7 +50,17 @@ struct CloudShareSheet: View {
     private func presentShareSheet() async {
         errorMessage = nil
         do {
-            let shareController = try await CloudSyncService.shared.makeCloudSharingController(for: record)
+            let shareController = try await CloudSyncService.shared.makeCloudSharingController(for: record) { result in
+                DispatchQueue.main.async {
+                    self.showShareSheet = false
+                    switch result {
+                    case .success:
+                        self.errorMessage = nil // Sharing completed or stopped
+                    case .failure(let error):
+                        self.errorMessage = error.localizedDescription
+                    }
+                }
+            }
             self.shareController = shareController
             self.showShareSheet = true
         } catch {
