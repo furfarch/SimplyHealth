@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import CloudKit
 
 struct RecordListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -12,9 +11,6 @@ struct RecordListView: View {
     @State private var showAbout: Bool = false
     @State private var showSettings: Bool = false
     @State private var saveErrorMessage: String?
-
-    // CloudKit fetcher
-    @StateObject private var cloudKitFetcher = CloudKitMedicalRecordFetcher()
 
     var body: some View {
         NavigationStack {
@@ -66,14 +62,14 @@ struct RecordListView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        Button("Import All to Local Records") {
+                            cloudKitFetcher.importToSwiftData(context: modelContext)
+                        }
                     }
                     Button("Reload from iCloud") {
                         cloudKitFetcher.fetchAll()
                     }
                 }
-            }
-            .onAppear {
-                cloudKitFetcher.fetchAll()
             }
             .navigationTitle("MyHealthData")
             .toolbar {
