@@ -44,7 +44,7 @@ struct RecordListView: View {
             }
             .navigationTitle("MyHealthData")
             .toolbar {
-                ToolbarItem(placement: .automatic) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         showAbout = true
                     } label: {
@@ -52,7 +52,7 @@ struct RecordListView: View {
                     }
                 }
 
-                ToolbarItem(placement: .automatic) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         showSettings = true
                     } label: {
@@ -60,7 +60,7 @@ struct RecordListView: View {
                     }
                 }
 
-                ToolbarItemGroup(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
                             addRecord(isPet: false)

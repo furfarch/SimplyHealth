@@ -11,6 +11,7 @@ import SwiftData
 @main
 struct MyHealthDataApp: App {
     private let modelContainer: ModelContainer
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let schema = Schema([
@@ -53,7 +54,24 @@ struct MyHealthDataApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .task {
+                    // On first launch, attempt to pull records from CloudKit into the local store.
+                    // This makes per-record sync appear automatic: when a record is uploaded from
+                    // another device, this device will import it on foreground/launch.
+                    let fetcher = CloudKitMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData")
+                    fetcher.setModelContext(self.modelContainer.mainContext)
+                    fetcher.fetchAll()
+                }
         }
         .modelContainer(modelContainer)
+        .onChange(of: scenePhase) { newPhase, _ in
+            if newPhase == .active {
+                Task { @MainActor in
+                    let fetcher = CloudKitMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData")
+                    fetcher.setModelContext(self.modelContainer.mainContext)
+                    fetcher.fetchAll()
+                }
+            }
+        }
     }
 }

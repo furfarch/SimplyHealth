@@ -279,6 +279,16 @@ struct RecordEditorView: View {
                     Task { @MainActor in
                         do {
                             try modelContext.save()
+                            // If this record is opted-in for cloud sync, push changes immediately
+                            if record.isCloudEnabled {
+                                do {
+                                    try await CloudSyncService.shared.syncIfNeeded(record: record)
+                                    try modelContext.save()
+                                } catch {
+                                    // Surface cloud sync errors but keep local changes
+                                    saveErrorMessage = "Cloud sync failed: \(error.localizedDescription)"
+                                }
+                            }
                             // Saved successfully: leave edit mode and dismiss sheet
                             isEditing = false
                             dismiss()

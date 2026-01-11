@@ -109,7 +109,36 @@ final class CloudSyncService {
             let fetched = try await database.record(for: share.recordID)
             if let fetchedShare = fetched as? CKShare { return fetchedShare }
 
-            throw NSError(domain: "CloudSyncService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to obtain saved CKShare from server."])
+            // Retry fetching the saved CKShare a few times with short backoff (common race with CloudKit)
+            let maxAttempts = 4
+            for attempt in 1...maxAttempts {
+                do {
+                    let fetched = try await database.record(for: share.recordID)
+                    if let fetchedShare = fetched as? CKShare {
+                        ShareDebugStore.shared.appendLog("Fetched CKShare on attempt \(attempt) id=\(fetchedShare.recordID.recordName)")
+                        return fetchedShare
+                    } else {
+                        ShareDebugStore.shared.appendLog("Fetched non-share record on attempt \(attempt) id=\(fetched.recordID.recordName) type=\(fetched.recordType)")
+                    }
+                } catch {
+                    ShareDebugStore.shared.appendLog("Attempt \(attempt) fetching share id=\(share.recordID.recordName) failed: \(error)")
+                }
+                // short exponential backoff
+                try await Task.sleep(nanoseconds: UInt64(0.25 * Double(attempt) * 1_000_000_000))
+            }
+
+            // Final fallback: try saving the share explicitly and return the saved share if it succeeds.
+            do {
+                let saved = try await database.save(share)
+                ShareDebugStore.shared.appendLog("Final fallback: database.save returned record id=\(saved.recordID.recordName) type=\(saved.recordType)")
+                if let savedShare = saved as? CKShare {
+                    return savedShare
+                }
+            } catch {
+                ShareDebugStore.shared.appendLog("Final fallback: database.save failed: \(error)")
+            }
+
+             throw NSError(domain: "CloudSyncService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to obtain saved CKShare from server."])
         } catch {
             throw enrichCloudKitError(error)
         }
