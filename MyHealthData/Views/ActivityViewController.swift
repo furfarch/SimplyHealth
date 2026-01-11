@@ -22,11 +22,12 @@ struct ActivityViewController: NSViewControllerRepresentable {
 
     func makeNSViewController(context: Context) -> NSViewController {
         let vc = NSViewController()
-        DispatchQueue.main.async {
+        // Show the sharing picker asynchronously after the view is added to the hierarchy.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
             let picker = NSSharingServicePicker(items: items)
-            if let v = vc.view {
-                picker.show(relativeTo: v.bounds, of: v, preferredEdge: .minY)
-            }
+            // vc.view is non-optional on AppKit — use it directly
+            let v = vc.view
+            picker.show(relativeTo: v.bounds, of: v, preferredEdge: .minY)
         }
         return vc
     }

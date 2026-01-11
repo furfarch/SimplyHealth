@@ -44,7 +44,7 @@ struct RecordListView: View {
             }
             .navigationTitle("MyHealthData")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .automatic) {
                     Button {
                         showAbout = true
                     } label: {
@@ -52,7 +52,7 @@ struct RecordListView: View {
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .automatic) {
                     Button {
                         showSettings = true
                     } label: {

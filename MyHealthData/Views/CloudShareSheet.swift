@@ -1,6 +1,9 @@
 import SwiftUI
 import CloudKit
+
+#if os(iOS) || targetEnvironment(macCatalyst)
 import UIKit
+#endif
 
 struct CloudShareSheet: View {
     let record: MedicalRecord
@@ -9,8 +12,13 @@ struct CloudShareSheet: View {
 
     @State private var isBusy = false
     @State private var errorMessage: String?
+
+    #if os(iOS) || targetEnvironment(macCatalyst)
     @State private var showShareSheet = false
-    @State private var shareController: UIViewController?
+    @State private var shareController: UICloudSharingController?
+    #else
+    @State private var shareURL: URL?
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -21,6 +29,7 @@ struct CloudShareSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
+                #if os(iOS) || targetEnvironment(macCatalyst)
                 if let errorMessage {
                     Section("Error") { Text(errorMessage).foregroundStyle(.red) }
                 }
@@ -35,19 +44,46 @@ struct CloudShareSheet: View {
                 .background(
                     ShareSheetPresenter(controller: $shareController, isPresented: $showShareSheet)
                 )
+                #else
+                if let shareURL {
+                    Section("Share") {
+                        Text(shareURL.absoluteString)
+                            .font(.footnote)
+                            .textSelection(.enabled)
+                        Button("Copy Link") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(shareURL.absoluteString, forType: .string)
+                        }
+                    }
+                }
+
+                if let errorMessage {
+                    Section("Error") { Text(errorMessage).foregroundStyle(.red) }
+                }
+
+                Section {
+                    Button {
+                        Task { await createShare_mac() }
+                    } label: {
+                        if isBusy { ProgressView() } else { Text("Create Share") }
+                    }
+                }
+                #endif
             }
             .navigationTitle("Share Record")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
     }
 
+    // MARK: - iOS flow
+    #if os(iOS) || targetEnvironment(macCatalyst)
     @MainActor
     private func presentShareSheet_iOS() async {
         errorMessage = nil
         isBusy = true
         defer { isBusy = false }
         do {
-            let controller = try await CloudSyncService.shared.makeShareActivityController(for: record) { result in
+            let controller = try await CloudSyncService.shared.makeCloudSharingController(for: record) { result in
                 DispatchQueue.main.async {
                     self.showShareSheet = false
                     switch result {
@@ -66,7 +102,7 @@ struct CloudShareSheet: View {
     }
 
     struct ShareSheetPresenter: UIViewControllerRepresentable {
-        @Binding var controller: UIViewController?
+        @Binding var controller: UICloudSharingController?
         @Binding var isPresented: Bool
         func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
         func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
@@ -76,4 +112,25 @@ struct CloudShareSheet: View {
             }
         }
     }
+    #endif
+
+    // MARK: - macOS fallback
+    #if os(macOS)
+    @MainActor
+    private func createShare_mac() async {
+        errorMessage = nil
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let share = try await CloudSyncService.shared.createShare(for: record)
+            if let url = share.url {
+                shareURL = url
+            } else {
+                errorMessage = "Share created but no URL available. Check iCloud account and container schema."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    #endif
 }
