@@ -31,39 +31,34 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         let operation = CKQueryOperation(query: query)
         var fetched: [CKRecord] = []
-
-        // Use recordMatchedBlock to receive per-record results (surfaces per-record errors)
-        operation.recordMatchedBlock = { matchedID, matchedResult in
-            switch matchedResult {
+        // Modern API: recordMatchedBlock surfaces per-record errors; collect successful records
+        operation.recordMatchedBlock = { _, result in
+            switch result {
             case .success(let record):
                 fetched.append(record)
-            case .failure(let recErr):
-                // Surface per-record errors to the published error property on main
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    self.error = recErr
-                }
+            case .failure(let err):
+                ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: recordMatchedBlock error: \(err)")
             }
         }
 
-        // Use queryResultBlock to handle overall completion and possible errors
         operation.queryResultBlock = { [weak self] result in
             DispatchQueue.main.async {
-                guard let self = self else { return }
-                self.isLoading = false
+                self?.isLoading = false
                 switch result {
                 case .success(_):
-                    self.records = fetched
+                    self?.records = fetched
                     // Automatic import to SwiftData for true sync
-                    if let context = self.modelContext {
-                        self.importToSwiftData(context: context)
+                    if let context = self?.modelContext {
+                        self?.importToSwiftData(context: context)
+                    } else {
+                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: no modelContext set, skipping importToSwiftData")
                     }
                 case .failure(let err):
-                    self.error = err
+                    self?.error = err
+                    ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: queryResultBlock error: \(err)")
                 }
             }
         }
-
         database.add(operation)
     }
 

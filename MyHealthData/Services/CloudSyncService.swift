@@ -51,6 +51,7 @@ final class CloudSyncService {
         let recordName = record.cloudRecordName ?? record.uuid
         let ckID = CKRecord.ID(recordName: recordName)
 
+        // Fetch existing record on server or create a new CKRecord with our deterministic ID
         let ckRecord: CKRecord
         do {
             ckRecord = try await database.record(for: ckID)
@@ -61,10 +62,29 @@ final class CloudSyncService {
 
         applyMedicalRecord(record, to: ckRecord)
 
-        let saved = try await database.save(ckRecord)
+        // Save via modifyRecords to receive server-returned per-record results. This
+        // reduces races where a freshly-saved record isn't immediately visible to other clients.
+        let (savedByID, _) = try await database.modifyRecords(saving: [ckRecord], deleting: [])
 
-        // Persist back CloudKit identity
-        record.cloudRecordName = saved.recordID.recordName
+        ShareDebugStore.shared.appendLog("syncIfNeeded: modifyRecords returned \(savedByID.count) entries for local uuid=\(record.uuid)")
+
+        if let entry = savedByID[ckID] {
+            switch entry {
+            case .success(let returned):
+                ShareDebugStore.shared.appendLog("syncIfNeeded: saved id=\(returned.recordID.recordName) type=\(returned.recordType)")
+                // Persist back CloudKit identity and server-updated timestamp if present
+                record.cloudRecordName = returned.recordID.recordName
+                if let updated = returned["updatedAt"] as? Date {
+                    record.updatedAt = updated
+                }
+            case .failure(let err):
+                ShareDebugStore.shared.appendLog("syncIfNeeded: server save failed for id=\(ckID.recordName): \(err)")
+                throw enrichCloudKitError(err)
+            }
+        } else {
+            ShareDebugStore.shared.appendLog("syncIfNeeded: no result entry returned for id=\(ckID.recordName)")
+            throw NSError(domain: "CloudSyncService", code: 6, userInfo: [NSLocalizedDescriptionKey: "CloudKit did not return a saved record for id=\(ckID.recordName)"])
+        }
     }
 
     func disableCloud(for record: MedicalRecord) {
@@ -109,36 +129,7 @@ final class CloudSyncService {
             let fetched = try await database.record(for: share.recordID)
             if let fetchedShare = fetched as? CKShare { return fetchedShare }
 
-            // Retry fetching the saved CKShare a few times with short backoff (common race with CloudKit)
-            let maxAttempts = 4
-            for attempt in 1...maxAttempts {
-                do {
-                    let fetched = try await database.record(for: share.recordID)
-                    if let fetchedShare = fetched as? CKShare {
-                        ShareDebugStore.shared.appendLog("Fetched CKShare on attempt \(attempt) id=\(fetchedShare.recordID.recordName)")
-                        return fetchedShare
-                    } else {
-                        ShareDebugStore.shared.appendLog("Fetched non-share record on attempt \(attempt) id=\(fetched.recordID.recordName) type=\(fetched.recordType)")
-                    }
-                } catch {
-                    ShareDebugStore.shared.appendLog("Attempt \(attempt) fetching share id=\(share.recordID.recordName) failed: \(error)")
-                }
-                // short exponential backoff
-                try await Task.sleep(nanoseconds: UInt64(0.25 * Double(attempt) * 1_000_000_000))
-            }
-
-            // Final fallback: try saving the share explicitly and return the saved share if it succeeds.
-            do {
-                let saved = try await database.save(share)
-                ShareDebugStore.shared.appendLog("Final fallback: database.save returned record id=\(saved.recordID.recordName) type=\(saved.recordType)")
-                if let savedShare = saved as? CKShare {
-                    return savedShare
-                }
-            } catch {
-                ShareDebugStore.shared.appendLog("Final fallback: database.save failed: \(error)")
-            }
-
-             throw NSError(domain: "CloudSyncService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to obtain saved CKShare from server."])
+            throw NSError(domain: "CloudSyncService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to obtain saved CKShare from server."])
         } catch {
             throw enrichCloudKitError(error)
         }
