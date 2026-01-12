@@ -162,9 +162,15 @@ final class CloudSyncService {
             } catch {
                 ShareDebugStore.shared.appendLog("disableCloud: cleanup failed for record=\(record.uuid) error=\(error)")
             }
-        }
 
-        // Keep cloudRecordName so it can be re-enabled later without duplicating, if desired.
+            // OFF means: this record is not on iCloud. Clear local CloudKit identifiers.
+            record.cloudRecordName = nil
+            record.cloudShareRecordName = nil
+            record.shareParticipantsSummary = ""
+
+            // Bump updatedAt so UI ordering reflects the change.
+            record.updatedAt = Date()
+        }
     }
 
     private func revokeSharingAndDeleteFromCloud(record: MedicalRecord) async throws {

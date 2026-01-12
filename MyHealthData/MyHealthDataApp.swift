@@ -13,9 +13,7 @@ struct MyHealthDataApp: App {
     private let modelContainer: ModelContainer
     @Environment(\.scenePhase) private var scenePhase: ScenePhase
 
-    // Keep a single fetcher instance alive for the app lifetime so its async
-    // query operations won't be deallocated before completion (this was causing
-    // `no modelContext set` and imports being skipped).
+    // Keep a single fetcher instance alive for the app lifetime.
     private let cloudFetcher: CloudKitMedicalRecordFetcher
 
     init() {
@@ -33,22 +31,17 @@ struct MyHealthDataApp: App {
             WeightEntry.self
         ])
 
-        // Force a purely local store. This avoids Core Data's CloudKit validation rules
-        // from preventing the app from launching while the schema is still evolving.
-        // (You can re-enable CloudKit later with a dedicated migration pass.)
         let localConfig = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
             cloudKitDatabase: .none
         )
 
-        // Initialize the retained fetcher early so it's available in tasks
         self.cloudFetcher = CloudKitMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData")
 
         do {
             self.modelContainer = try ModelContainer(for: schema, configurations: [localConfig])
         } catch {
-            // LOG THE ERROR so we know why persistent store failed
             print("[MyHealthDataApp] Failed to create persistent ModelContainer: \(error)")
             let memoryConfig = ModelConfiguration(
                 schema: schema,
@@ -63,19 +56,18 @@ struct MyHealthDataApp: App {
         WindowGroup {
             ContentView()
                 .task {
-                    // On first launch, attempt to pull records from CloudKit into the local store.
-                    // Keep the fetcher retained on self so its async callbacks can import safely.
+                    // Pull changes on launch.
                     self.cloudFetcher.setModelContext(self.modelContainer.mainContext)
-                    self.cloudFetcher.fetchAll()
+                    self.cloudFetcher.fetchChanges()
                 }
         }
         .modelContainer(modelContainer)
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            // Use two-argument onChange to satisfy the newer API and avoid deprecation warnings.
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
+                // Pull changes when app becomes active.
                 Task { @MainActor in
                     self.cloudFetcher.setModelContext(self.modelContainer.mainContext)
-                    self.cloudFetcher.fetchAll()
+                    self.cloudFetcher.fetchChanges()
                 }
             }
         }

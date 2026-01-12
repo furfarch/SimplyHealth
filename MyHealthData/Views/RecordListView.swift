@@ -201,9 +201,9 @@ struct RecordListView: View {
 
     @MainActor
     private func refreshFromCloud() async {
-        // Reuse a single fetcher instance here would be ideal, but this is safe and keeps changes localized.
+        // Pull incremental changes (including deletions) so this works without app relaunch.
         let fetcher = CloudKitMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
-        fetcher.fetchAll()
+        fetcher.fetchChanges()
     }
 }
 

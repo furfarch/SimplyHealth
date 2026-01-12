@@ -82,12 +82,11 @@ struct CloudRecordSettingsView: View {
             Toggle("Sync", isOn: Binding(
                 get: { record.isCloudEnabled },
                 set: { newValue in
-                    record.isCloudEnabled = newValue
-
-                    if !newValue {
-                        // Turning off sync also turns off sharing.
-                        record.isSharingEnabled = false
-                        record.shareParticipantsSummary = ""
+                    if newValue {
+                        record.isCloudEnabled = true
+                    } else {
+                        // OFF means: remove this record from iCloud.
+                        CloudSyncService.shared.disableCloud(for: record)
                     }
 
                     record.updatedAt = Date()
