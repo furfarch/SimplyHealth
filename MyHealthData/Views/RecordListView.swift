@@ -36,6 +36,12 @@ struct RecordListView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
+                                
+                                Spacer()
+                                
+                                Image(systemName: record.isCloudEnabled ? (record.isSharingEnabled ? "person.2.circle" : "icloud") : "iphone")
+                                    .foregroundStyle(record.isCloudEnabled ? (record.isSharingEnabled ? .green : .blue) : .secondary)
+                                    .imageScale(.small)
                             }
                         }
                     }
@@ -141,21 +147,15 @@ struct RecordListView: View {
         }
 
         modelContext.insert(record)
-        // Persist immediately then present the editor in edit mode. Doing the presentation
-        // after the save avoids a timing issue on iOS where the sheet's `startEditing`
-        // parameter might not be received if set before the save completes.
+        // Persist immediately so the query observes the change.
         Task { @MainActor in
-            do {
-                try modelContext.save()
-                // Set startEditing before assigning activeRecord so the sheet initializer
-                // receives the desired flag when it appears.
-                startEditing = true
-                activeRecord = record
-                showEditor = true
-            } catch {
-                saveErrorMessage = "Save failed: \(error.localizedDescription)"
-            }
+            do { try modelContext.save() }
+            catch { saveErrorMessage = "Save failed: \(error.localizedDescription)" }
         }
+
+        activeRecord = record
+        startEditing = true
+        showEditor = true
     }
 
     private func deleteRecords(at offsets: IndexSet) {

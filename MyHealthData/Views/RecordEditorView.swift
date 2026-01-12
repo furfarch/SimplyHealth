@@ -37,13 +37,8 @@ struct RecordEditorView: View {
                         .font(.headline)
                         .lineLimit(1)
 
-                    Image(systemName: storageStatusIcon)
-                        .foregroundStyle(storageStatusColor)
-
-                    if record.isSharingEnabled {
-                        Image(systemName: "person.2.circle")
-                            .foregroundStyle(.green)
-                    }
+                    Image(systemName: record.isCloudEnabled ? (record.isSharingEnabled ? "person.2.circle" : "icloud") : "iphone")
+                        .foregroundStyle(record.isCloudEnabled ? (record.isSharingEnabled ? .green : .blue) : .secondary)
                 }
             }
 
@@ -279,16 +274,6 @@ struct RecordEditorView: View {
                     Task { @MainActor in
                         do {
                             try modelContext.save()
-                            // If this record is opted-in for cloud sync, push changes immediately
-                            if record.isCloudEnabled {
-                                do {
-                                    try await CloudSyncService.shared.syncIfNeeded(record: record)
-                                    try modelContext.save()
-                                } catch {
-                                    // Surface cloud sync errors but keep local changes
-                                    saveErrorMessage = "Cloud sync failed: \(error.localizedDescription)"
-                                }
-                            }
                             // Saved successfully: leave edit mode and dismiss sheet
                             isEditing = false
                             dismiss()
