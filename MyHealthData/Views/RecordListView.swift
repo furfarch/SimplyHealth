@@ -17,6 +17,9 @@ struct RecordListView: View {
             List {
                 listContent
             }
+            .refreshable {
+                await refreshFromCloud()
+            }
             .navigationTitle("MyHealthData")
             .toolbar {
                 #if os(iOS) || targetEnvironment(macCatalyst)
@@ -34,11 +37,6 @@ struct RecordListView: View {
                     } label: {
                         Image(systemName: "gearshape")
                     }
-                }
-
-                // Enables the standard iOS delete UI (and also works for iPad-on-Mac where swipe can be awkward).
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
                 }
 
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -59,7 +57,7 @@ struct RecordListView: View {
                     }
                 }
                 #else
-                // macOS build (if you ever add a real macOS target later).
+                // macOS: use automatic placements so toolbar items render in the mac toolbar
                 ToolbarItem(placement: .automatic) {
                     Button {
                         showAbout = true
@@ -110,55 +108,6 @@ struct RecordListView: View {
         }
     }
 
-    @ViewBuilder
-    private var listContent: some View {
-        if records.isEmpty {
-            VStack(alignment: .center) {
-                Text("No records yet")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-        } else {
-            ForEach(records, id: \.persistentModelID) { record in
-                row(for: record)
-            }
-            .onDelete(perform: deleteRecords)
-        }
-    }
-
-    private func row(for record: MedicalRecord) -> some View {
-        HStack {
-            Image(systemName: record.isPet ? "cat" : "person")
-
-            VStack(alignment: .leading) {
-                Text(displayName(for: record)).font(.headline)
-                Text(record.updatedAt, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 8)
-
-            Image(systemName: record.locationStatus.systemImageName)
-                .foregroundStyle(record.locationStatus.color)
-                .accessibilityLabel(record.locationStatus.accessibilityLabel)
-                .accessibilityIdentifier("recordLocationStatusIcon")
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            activeRecord = record
-            startEditing = false
-            showEditor = true
-        }
-        .contextMenu {
-            Button(role: .destructive) {
-                deleteRecords(with: [record])
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-    }
-
     private func addRecord(isPet: Bool) {
         let record = MedicalRecord()
         record.isPet = isPet
@@ -183,35 +132,22 @@ struct RecordListView: View {
 
     private func deleteRecords(at offsets: IndexSet) {
         Task { @MainActor in
+            // delete in reverse index order
             for index in offsets.sorted(by: >) {
                 let record = records[index]
-                await deleteRecord(record)
+                if record.isCloudEnabled {
+                    do {
+                        try await CloudSyncService.shared.deleteCloudRecord(for: record)
+                    } catch {
+                        // record cloud delete failed; surface error but continue with local deletion
+                        saveErrorMessage = "Cloud delete failed: \(error.localizedDescription)"
+                    }
+                }
+                modelContext.delete(record)
             }
             do { try modelContext.save() }
             catch { saveErrorMessage = "Delete failed: \(error.localizedDescription)" }
         }
-    }
-
-    private func deleteRecords(with recordsToDelete: [MedicalRecord]) {
-        Task { @MainActor in
-            for record in recordsToDelete {
-                await deleteRecord(record)
-            }
-            do { try modelContext.save() }
-            catch { saveErrorMessage = "Delete failed: \(error.localizedDescription)" }
-        }
-    }
-
-    @MainActor
-    private func deleteRecord(_ record: MedicalRecord) async {
-        if record.isCloudEnabled {
-            do {
-                try await CloudSyncService.shared.deleteCloudRecord(for: record)
-            } catch {
-                saveErrorMessage = "Cloud delete failed: \(error.localizedDescription)"
-            }
-        }
-        modelContext.delete(record)
     }
 
     private func displayName(for record: MedicalRecord) -> String {
@@ -227,6 +163,47 @@ struct RecordListView: View {
             if family.isEmpty && given.isEmpty { return "Person" }
             return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
         }
+    }
+
+    @ViewBuilder
+    private var listContent: some View {
+        if records.isEmpty {
+            Text("No records yet")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            ForEach(records, id: \.persistentModelID) { record in
+                NavigationLink {
+                    RecordEditorView(record: record, startEditing: false)
+                } label: {
+                    HStack {
+                        Image(systemName: record.isPet ? "cat" : "person")
+
+                        VStack(alignment: .leading) {
+                            Text(displayName(for: record)).font(.headline)
+                            Text(record.updatedAt, style: .date)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Image(systemName: record.locationStatus.systemImageName)
+                            .foregroundStyle(record.locationStatus.color)
+                            .accessibilityLabel(record.locationStatus.accessibilityLabel)
+                            .accessibilityIdentifier("recordLocationStatusIcon")
+                    }
+                }
+            }
+            .onDelete(perform: deleteRecords)
+        }
+    }
+
+    @MainActor
+    private func refreshFromCloud() async {
+        // Reuse a single fetcher instance here would be ideal, but this is safe and keeps changes localized.
+        let fetcher = CloudKitMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
+        fetcher.fetchAll()
     }
 }
 

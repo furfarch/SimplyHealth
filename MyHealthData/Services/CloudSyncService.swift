@@ -326,38 +326,55 @@ final class CloudSyncService {
     }
 
     func deleteSyncRecord(forLocalRecord record: MedicalRecord) async throws {
-        let recordName = record.cloudRecordName ?? record.uuid
-        let ckID = CKRecord.ID(recordName: recordName)
+        try await ensureShareZoneExists()
+
+        // Best-effort: delete CKShare first (shares live in the share zone).
+        if let shareRecordName = record.cloudShareRecordName {
+            let shareID = CKRecord.ID(recordName: shareRecordName, zoneID: shareZoneID)
+            do {
+                _ = try await database.deleteRecord(withID: shareID)
+                ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CKShare id=\(shareRecordName) zone=\(shareZoneName) for local uuid=\(record.uuid)")
+            } catch {
+                if let ck = error as? CKError, ck.code == .unknownItem {
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] CKShare already missing id=\(shareRecordName) zone=\(shareZoneName)")
+                } else {
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting CKShare id=\(shareRecordName) zone=\(shareZoneName): \(error)")
+                    // don't block root deletion on share cleanup
+                }
+            }
+            record.cloudShareRecordName = nil
+        }
+
+        // Root records live in the share zone.
+        let ckID = zonedRecordID(for: record)
 
         // First try to delete by record ID directly
         do {
             let deleted = try await database.deleteRecord(withID: ckID)
-            print("[CloudSyncService] Deleted CloudKit record id=\(deleted.recordName) for local record=\(record.uuid)")
+            ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit root id=\(deleted.recordName) zone=\(shareZoneName) for local uuid=\(record.uuid)")
             return
         } catch {
-            print("[CloudSyncService] Direct delete failed for CloudKit record id=\(ckID.recordName): \(error)")
-            // Try to enrich and rethrow the error
-            // We'll fall through to fallback query approach instead of rethrowing here
+            ShareDebugStore.shared.appendLog("[CloudSyncService] Direct zoned delete failed id=\(ckID.recordName) zone=\(shareZoneName): \(error)")
+            // fall through to query-by-uuid in the same zone
         }
 
-        // Fallback: delete by matching uuid field
+        // Fallback: delete by matching uuid field (must query the same custom zone)
         let predicate = NSPredicate(format: "uuid == %@", record.uuid)
         let query = CKQuery(recordType: medicalRecordType, predicate: predicate)
 
-        // Run the query operation and collect matched record IDs using a continuation
         let idsToDelete: [CKRecord.ID] = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[CKRecord.ID], Error>) in
             var foundIDs: [CKRecord.ID] = []
             let op = CKQueryOperation(query: query)
-            op.recordMatchedBlock = { (matchedID: CKRecord.ID, matchedResult: Result<CKRecord, Error>) in
+            op.zoneID = shareZoneID
+            op.recordMatchedBlock = { (_: CKRecord.ID, matchedResult: Result<CKRecord, Error>) in
                 switch matchedResult {
                 case .success(let rec): foundIDs.append(rec.recordID)
-                case .failure(let err):
-                    cont.resume(throwing: err)
+                case .failure(let err): cont.resume(throwing: err)
                 }
             }
-            op.queryResultBlock = { (result: Result<CKQueryOperation.Cursor?, Error>) in
+            op.queryResultBlock = { result in
                 switch result {
-                case .success(_): cont.resume(returning: foundIDs)
+                case .success: cont.resume(returning: foundIDs)
                 case .failure(let err): cont.resume(throwing: err)
                 }
             }
@@ -365,19 +382,17 @@ final class CloudSyncService {
         }
 
         if !idsToDelete.isEmpty {
-            // Delete found records (can delete multiple matches just in case)
             for id in idsToDelete {
                 do {
                     let deleted = try await database.deleteRecord(withID: id)
-                    print("[CloudSyncService] Deleted CloudKit record id=\(deleted.recordName) via uuid match for local uuid=\(record.uuid)")
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit record id=\(deleted.recordName) via uuid match zone=\(shareZoneName) local uuid=\(record.uuid)")
                 } catch {
-                    print("[CloudSyncService] Failed to delete matched CloudKit record id=\(id.recordName): \(error)")
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting matched CloudKit record id=\(id.recordName): \(error)")
                     throw enrichCloudKitError(error)
                 }
             }
         } else {
-            // nothing found to delete - not an error
-            print("[CloudSyncService] No CloudKit record found matching uuid=\(record.uuid)")
+            ShareDebugStore.shared.appendLog("[CloudSyncService] No CloudKit record found for uuid=\(record.uuid) in zone=\(shareZoneName)")
         }
     }
 
