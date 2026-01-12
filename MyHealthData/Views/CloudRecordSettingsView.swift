@@ -91,17 +91,7 @@ struct CloudRecordSettingsView: View {
                     }
 
                     record.updatedAt = Date()
-
-                    do {
-                        try modelContext.save()
-                    } catch {
-                        errorMessage = "Failed to save record: \(error.localizedDescription)"
-                    }
-
-                    // If the user enabled sync, start an immediate push so other devices can see the record.
-                    if newValue {
-                        Task { await syncNow(record) }
-                    }
+                    try? modelContext.save()
                 }
             ))
             .disabled(!cloudEnabled)

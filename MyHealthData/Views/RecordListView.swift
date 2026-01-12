@@ -36,24 +36,6 @@ struct RecordListView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                Spacer()
-
-                                // Minimal cloud sync / sharing status indicators
-                                HStack(spacing: 8) {
-                                    if record.isCloudEnabled {
-                                        Image(systemName: "icloud.fill")
-                                            .foregroundStyle(.blue)
-                                            .imageScale(.small)
-                                            .accessibilityLabel("iCloud sync enabled")
-                                    }
-
-                                    if record.isSharingEnabled {
-                                        Image(systemName: "person.2.fill")
-                                            .foregroundStyle(.green)
-                                            .imageScale(.small)
-                                            .accessibilityLabel("Record is shared")
-                                    }
-                                }
                             }
                         }
                     }
@@ -159,15 +141,21 @@ struct RecordListView: View {
         }
 
         modelContext.insert(record)
-        // Persist immediately so the query observes the change.
+        // Persist immediately then present the editor in edit mode. Doing the presentation
+        // after the save avoids a timing issue on iOS where the sheet's `startEditing`
+        // parameter might not be received if set before the save completes.
         Task { @MainActor in
-            do { try modelContext.save() }
-            catch { saveErrorMessage = "Save failed: \(error.localizedDescription)" }
+            do {
+                try modelContext.save()
+                // Set startEditing before assigning activeRecord so the sheet initializer
+                // receives the desired flag when it appears.
+                startEditing = true
+                activeRecord = record
+                showEditor = true
+            } catch {
+                saveErrorMessage = "Save failed: \(error.localizedDescription)"
+            }
         }
-
-        activeRecord = record
-        startEditing = true
-        showEditor = true
     }
 
     private func deleteRecords(at offsets: IndexSet) {

@@ -79,6 +79,12 @@ final class MedicalRecord {
     /// For now this may remain empty; we'll populate it later when we add participant fetching.
     var shareParticipantsSummary: String = ""
 
+    // Per-record sync metadata (persisted locally)
+    var lastSyncAt: Date? = nil
+    var lastSyncError: String? = nil
+    // Chronological per-record sync/debug log entries (most recent last)
+    var syncLogs: [String] = []
+
     init(
         uuid: String = UUID().uuidString,
         createdAt: Date = Date(),
@@ -115,7 +121,10 @@ final class MedicalRecord {
         isCloudEnabled: Bool = false,
         cloudRecordName: String? = nil,
         isSharingEnabled: Bool = false,
-        shareParticipantsSummary: String = ""
+        shareParticipantsSummary: String = "",
+        lastSyncAt: Date? = nil,
+        lastSyncError: String? = nil,
+        syncLogs: [String] = []
     ) {
         self.uuid = uuid
         self.createdAt = createdAt
@@ -159,5 +168,9 @@ final class MedicalRecord {
         self.cloudRecordName = cloudRecordName
         self.isSharingEnabled = isSharingEnabled
         self.shareParticipantsSummary = shareParticipantsSummary
+
+        self.lastSyncAt = lastSyncAt
+        self.lastSyncError = lastSyncError
+        self.syncLogs = syncLogs
     }
 }

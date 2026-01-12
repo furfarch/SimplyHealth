@@ -39,50 +39,57 @@ final class CloudSyncService {
     func syncIfNeeded(record: MedicalRecord) async throws {
         guard record.isCloudEnabled else { return }
 
+        // Check iCloud account availability
         let status = try await accountStatus()
         guard status == .available else {
-            throw NSError(
+            let err = NSError(
                 domain: "CloudSyncService",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "iCloud account not available (status: \(status))."]
             )
+
+            // persist and log account status failure on record
+            record.lastSyncAt = nil
+            record.lastSyncError = err.localizedDescription
+            ShareDebugStore.shared.appendLog("syncIfNeeded: account not available for record=\(record.uuid) status=\(status)")
+            let ts1 = ISO8601DateFormatter().string(from: Date())
+            record.syncLogs.append("[\(ts1)] account not available: \(status)")
+
+            throw err
         }
 
         let recordName = record.cloudRecordName ?? record.uuid
         let ckID = CKRecord.ID(recordName: recordName)
 
+        // Try to fetch existing record; create if not found
         let ckRecord: CKRecord
         do {
             ckRecord = try await database.record(for: ckID)
         } catch {
-            // If it doesn't exist yet, create a new one.
             ckRecord = CKRecord(recordType: medicalRecordType, recordID: ckID)
         }
 
         applyMedicalRecord(record, to: ckRecord)
 
-        // Save via modifyRecords to receive server-returned per-record results. This
-        // reduces races where a freshly-saved record isn't immediately visible to other clients.
-        let (savedByID, _) = try await database.modifyRecords(saving: [ckRecord], deleting: [])
+        do {
+            let saved = try await database.save(ckRecord)
 
-        ShareDebugStore.shared.appendLog("syncIfNeeded: modifyRecords returned \(savedByID.count) entries for local uuid=\(record.uuid)")
+            // Persist back CloudKit identity and mark success
+            record.cloudRecordName = saved.recordID.recordName
+            record.lastSyncAt = Date()
+            record.lastSyncError = nil
+            ShareDebugStore.shared.appendLog("syncIfNeeded: saved id=\(saved.recordID.recordName) type=\(saved.recordType) for local uuid=\(record.uuid)")
+            let ts2 = ISO8601DateFormatter().string(from: Date())
+            record.syncLogs.append("[\(ts2)] saved id=\(saved.recordID.recordName) type=\(saved.recordType)")
+        } catch {
+            // mark failure and log
+            record.lastSyncAt = nil
+            record.lastSyncError = String(describing: error)
+            ShareDebugStore.shared.appendLog("syncIfNeeded: failed to save record=\(record.uuid) error=\(error)")
+            let ts3 = ISO8601DateFormatter().string(from: Date())
+            record.syncLogs.append("[\(ts3)] save failed: \(error)")
 
-        if let entry = savedByID[ckID] {
-            switch entry {
-            case .success(let returned):
-                ShareDebugStore.shared.appendLog("syncIfNeeded: saved id=\(returned.recordID.recordName) type=\(returned.recordType)")
-                // Persist back CloudKit identity and server-updated timestamp if present
-                record.cloudRecordName = returned.recordID.recordName
-                if let updated = returned["updatedAt"] as? Date {
-                    record.updatedAt = updated
-                }
-            case .failure(let err):
-                ShareDebugStore.shared.appendLog("syncIfNeeded: server save failed for id=\(ckID.recordName): \(err)")
-                throw enrichCloudKitError(err)
-            }
-        } else {
-            ShareDebugStore.shared.appendLog("syncIfNeeded: no result entry returned for id=\(ckID.recordName)")
-            throw NSError(domain: "CloudSyncService", code: 6, userInfo: [NSLocalizedDescriptionKey: "CloudKit did not return a saved record for id=\(ckID.recordName)"])
+            throw enrichCloudKitError(error)
         }
     }
 
@@ -186,7 +193,32 @@ final class CloudSyncService {
             throw enrichCloudKitError(error)
         }
 
-        let controller = UICloudSharingController(share: savedShare, container: container)
+        // The server can take a short moment to make the CKShare queryable. Try to fetch
+        // the saved share via repeated `database.record(for:)` calls with a small retry/backoff.
+        var finalShare: CKShare = savedShare
+        let maxAttempts = 4
+        for attempt in 0..<maxAttempts {
+            do {
+                let fetchedRecord = try await database.record(for: savedShare.recordID)
+                if let fetchedShare = fetchedRecord as? CKShare {
+                    finalShare = fetchedShare
+                    ShareDebugStore.shared.appendLog("makeCloudSharingController: fetched CKShare via database.record(for:) attempt=\(attempt)")
+                    break
+                } else {
+                    ShareDebugStore.shared.appendLog("makeCloudSharingController: database.record(for:) returned non-share record on attempt=\(attempt)")
+                    throw NSError(domain: "CloudSyncService", code: 1002, userInfo: [NSLocalizedDescriptionKey: "Fetched record is not a CKShare"])
+                }
+            } catch {
+                ShareDebugStore.shared.appendLog("makeCloudSharingController: database.record(for:) attempt=\(attempt) failed: \(error)")
+                if attempt < maxAttempts - 1 {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    continue
+                }
+                ShareDebugStore.shared.appendLog("makeCloudSharingController: proceeding with original CKShare as fallback")
+            }
+        }
+
+        let controller = UICloudSharingController(share: finalShare, container: container)
         controller.delegate = delegate
         controller.availablePermissions = [.allowReadWrite, .allowPrivate]
         controller.modalPresentationStyle = .formSheet

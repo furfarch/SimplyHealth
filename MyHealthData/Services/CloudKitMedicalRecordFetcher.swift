@@ -31,11 +31,11 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         let operation = CKQueryOperation(query: query)
         var fetched: [CKRecord] = []
-        // Modern API: recordMatchedBlock surfaces per-record errors; collect successful records
-        operation.recordMatchedBlock = { _, result in
+        // Use modern per-record callback to surface per-record errors and collect records.
+        operation.recordMatchedBlock = { (recordID, result) in
             switch result {
-            case .success(let record):
-                fetched.append(record)
+            case .success(let rec):
+                fetched.append(rec)
             case .failure(let err):
                 ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: recordMatchedBlock error: \(err)")
             }
@@ -47,11 +47,13 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
                 switch result {
                 case .success(_):
                     self?.records = fetched
-                    // Automatic import to SwiftData for true sync
+                    // Automatic sync/merge into SwiftData (the app's intended automatic behavior)
                     if let context = self?.modelContext {
+                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: performing sync/merge of \(fetched.count) records into local store")
                         self?.importToSwiftData(context: context)
+                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: sync/merge complete for \(fetched.count) records")
                     } else {
-                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: no modelContext set, skipping importToSwiftData")
+                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: no modelContext set, skipping sync/merge to SwiftData")
                     }
                 case .failure(let err):
                     self?.error = err
@@ -60,6 +62,48 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
             }
         }
         database.add(operation)
+    }
+
+    /// Async API: fetch all records and import them into local SwiftData; returns number of fetched records.
+    func fetchAllAsync() async throws -> Int {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int, Error>) in
+            isLoading = true
+            error = nil
+            let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+            let op = CKQueryOperation(query: query)
+            var fetched: [CKRecord] = []
+
+            op.recordMatchedBlock = { (recordID, result) in
+                switch result {
+                case .success(let rec): fetched.append(rec)
+                case .failure(let err): ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: recordMatchedBlock error: \(err)")
+                }
+            }
+
+            op.queryResultBlock = { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.isLoading = false
+                    switch result {
+                    case .success(_):
+                        self?.records = fetched
+                        if let context = self?.modelContext {
+                            ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: (async) performing sync/merge of \(fetched.count) records into local store")
+                            self?.importToSwiftData(context: context)
+                            ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: (async) sync/merge complete for \(fetched.count) records")
+                        } else {
+                            ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: (async) no modelContext set, skipping sync/merge to SwiftData")
+                        }
+                        continuation.resume(returning: fetched.count)
+                    case .failure(let err):
+                        self?.error = err
+                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: (async) queryResultBlock error: \(err)")
+                        continuation.resume(throwing: err)
+                    }
+                }
+            }
+
+            database.add(op)
+        }
     }
 
     /// Import fetched CKRecords into the local SwiftData store as MedicalRecord objects.
@@ -117,6 +161,7 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
                     // remote deleted — keep local data but disable cloud sync for this record
                     local.isCloudEnabled = false
                     local.cloudRecordName = nil
+                    ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: reconciled remote deletion for record uuid: \(local.uuid)")
                 }
             }
             try context.save()
