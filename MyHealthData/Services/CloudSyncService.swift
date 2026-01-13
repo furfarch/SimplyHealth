@@ -22,6 +22,9 @@ final class CloudSyncService {
     private var shareZoneID: CKRecordZone.ID {
         CKRecordZone.ID(zoneName: shareZoneName, ownerName: CKCurrentUserDefaultName)
     }
+    
+    // Delay to allow server-side processing of share URL (in nanoseconds)
+    private let shareURLPopulationDelay: UInt64 = 500_000_000 // 0.5 seconds
 
     /// CloudKit record type used for MedicalRecord mirrors.
     /// IMPORTANT:
@@ -259,7 +262,8 @@ final class CloudSyncService {
             // This gives us more reliable callbacks compared to modifyRecords
             ShareDebugStore.shared.appendLog("createShare: saving root=\(root.recordID.recordName) and share=\(share.recordID.recordName) in zone=\(shareZoneName)")
             
-            let savedShare: CKShare = try await withCheckedThrowingContinuation { continuation in
+            // First, save the records using the operation
+            let operationResult: CKShare? = try await withCheckedThrowingContinuation { continuation in
                 let operation = CKModifyRecordsOperation(recordsToSave: [root, share], recordIDsToDelete: [])
                 operation.savePolicy = .changedKeys
                 operation.qualityOfService = .userInitiated
@@ -288,21 +292,8 @@ final class CloudSyncService {
                             ShareDebugStore.shared.appendLog("createShare: operation succeeded with share id=\(savedShare.recordID.recordName) url=\(String(describing: savedShare.url))")
                             continuation.resume(returning: savedShare)
                         } else {
-                            ShareDebugStore.shared.appendLog("createShare: operation succeeded but share not captured in callbacks")
-                            // Try to fetch the share as a fallback
-                            Task {
-                                do {
-                                    if let fetchedShare = try await self.database.record(for: share.recordID) as? CKShare {
-                                        ShareDebugStore.shared.appendLog("createShare: fetched share after operation id=\(fetchedShare.recordID.recordName)")
-                                        continuation.resume(returning: fetchedShare)
-                                    } else {
-                                        continuation.resume(throwing: NSError(domain: "CloudSyncService", code: 6, userInfo: [NSLocalizedDescriptionKey: "Share was not captured and fetch returned wrong type"]))
-                                    }
-                                } catch {
-                                    ShareDebugStore.shared.appendLog("createShare: fetch after operation failed: \(error)")
-                                    continuation.resume(throwing: error)
-                                }
-                            }
+                            ShareDebugStore.shared.appendLog("createShare: operation succeeded but share not captured in callbacks, will try fallback fetch")
+                            continuation.resume(returning: nil)
                         }
                     case .failure(let error):
                         ShareDebugStore.shared.appendLog("createShare: operation failed: \(error)")
@@ -311,6 +302,20 @@ final class CloudSyncService {
                 }
                 
                 database.add(operation)
+            }
+            
+            // If share wasn't captured in operation callbacks, fetch it directly
+            let savedShare: CKShare
+            if let operationShare = operationResult {
+                savedShare = operationShare
+            } else {
+                ShareDebugStore.shared.appendLog("createShare: fetching share directly after operation completed")
+                if let fetchedShare = try await database.record(for: share.recordID) as? CKShare {
+                    ShareDebugStore.shared.appendLog("createShare: fetched share after operation id=\(fetchedShare.recordID.recordName)")
+                    savedShare = fetchedShare
+                } else {
+                    throw NSError(domain: "CloudSyncService", code: 6, userInfo: [NSLocalizedDescriptionKey: "Share was saved but could not be retrieved from CloudKit"])
+                }
             }
             
             // Store the share record name and URL
@@ -323,7 +328,7 @@ final class CloudSyncService {
                 ShareDebugStore.shared.appendLog("createShare: share URL is nil after save, refetching from server")
                 
                 // Small delay to allow server-side processing
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                try await Task.sleep(nanoseconds: shareURLPopulationDelay)
                 
                 do {
                     if let refetchedShare = try await database.record(for: savedShare.recordID) as? CKShare {
