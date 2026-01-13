@@ -337,12 +337,11 @@ final class CloudSyncService {
                         
                         // Verify the root record has the share reference
                         do {
-                            if let refetchedRoot = try await database.record(for: root.recordID) {
-                                if let shareRef = refetchedRoot.share {
-                                    ShareDebugStore.shared.appendLog("createShare: root record has share reference=\(shareRef.recordID.recordName)")
-                                } else {
-                                    ShareDebugStore.shared.appendLog("createShare: WARNING - root record does not have share reference")
-                                }
+                            let refetchedRoot = try await database.record(for: root.recordID)
+                            if let shareRef = refetchedRoot.share {
+                                ShareDebugStore.shared.appendLog("createShare: root record has share reference=\(shareRef.recordID.recordName)")
+                            } else {
+                                ShareDebugStore.shared.appendLog("createShare: WARNING - root record does not have share reference")
                             }
                         } catch {
                             ShareDebugStore.shared.appendLog("createShare: WARNING - failed to refetch root record: \(error)")
