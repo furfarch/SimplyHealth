@@ -151,10 +151,11 @@ final class MedicalRecord {
     }
     
     /// Sort key for ordering records
-    /// Uses the same pattern as displayName: Family Name, Given Name, Name
-    /// Returns lowercase version of displayName for case-insensitive sorting
+    /// Humans first, then Pets, both alphabetically sorted by displayName
+    /// Uses "0-" prefix for humans and "1-" prefix for pets to ensure correct ordering
     var sortKey: String {
-        return displayName.lowercased()
+        let prefix = isPet ? "1-" : "0-"
+        return prefix + displayName.lowercased()
     }
 
     init(
