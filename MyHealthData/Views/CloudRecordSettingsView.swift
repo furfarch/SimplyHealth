@@ -72,7 +72,7 @@ struct CloudRecordSettingsView: View {
     private func recordRow(for record: MedicalRecord) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(displayName(for: record))
+                Text(record.displayName)
                     .font(.headline)
                 Spacer()
                 Image(systemName: record.isCloudEnabled ? (record.isSharingEnabled ? "person.2.circle" : "icloud") : "iphone")
@@ -169,20 +169,7 @@ struct CloudRecordSettingsView: View {
         }
     }
 
-    private func displayName(for record: MedicalRecord) -> String {
-        if record.isPet {
-            let name = record.personalName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !name.isEmpty { return name }
-            return "Pet"
-        } else {
-            let family = record.personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let given = record.personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let nick = record.personalNickName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !nick.isEmpty { return nick }
-            if family.isEmpty && given.isEmpty { return "Person" }
-            return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-        }
-    }
+
 }
 
 #Preview {

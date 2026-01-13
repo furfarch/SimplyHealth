@@ -126,6 +126,37 @@ final class MedicalRecord {
         return .local
     }
 
+    /// Display name for the record following the pattern: "Family Name - Given Name - Name"
+    /// For pets: uses personalName
+    /// For humans: displays all non-empty fields in order (family, given, name) separated by " - "
+    /// Examples: "Smith - John - Johnny", "Smith - John", "Johnny", "Person" (when all empty)
+    var displayName: String {
+        if isPet {
+            let name = personalName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? "Pet" : name
+        } else {
+            let family = personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let given = personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = personalNickName.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Build the display name with " - " separator
+            let parts = [family, given, name].filter { !$0.isEmpty }
+            
+            if parts.isEmpty {
+                return "Person"
+            }
+            
+            return parts.joined(separator: " - ")
+        }
+    }
+    
+    /// Sort key for ordering records
+    /// Uses the same pattern as displayName: Family Name, Given Name, Name
+    /// Returns lowercase version of displayName for case-insensitive sorting
+    var sortKey: String {
+        return displayName.lowercased()
+    }
+
     init(
         uuid: String = UUID().uuidString,
         createdAt: Date = Date(),

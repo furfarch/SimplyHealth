@@ -28,12 +28,12 @@ struct RecordEditorView: View {
                 viewPager
             }
         }
-        .navigationTitle(displayName)
+        .navigationTitle(record.displayName)
         .toolbar {
             // Status icons shown in both view + edit modes.
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 8) {
-                    Text(displayName)
+                    Text(record.displayName)
                         .font(.headline)
                         .lineLimit(1)
 
@@ -252,14 +252,7 @@ struct RecordEditorView: View {
         .tag(section)
     }
 
-    private var displayName: String {
-        let family = record.personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let given = record.personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if family.isEmpty && given.isEmpty {
-            return "Medical Record"
-        }
-        return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-    }
+
 
     private func touch() {
         record.updatedAt = Date()

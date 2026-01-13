@@ -112,4 +112,81 @@ struct MyHealthDataTests {
         r.isCloudEnabled = false
         #expect(r.locationStatus == .local)
     }
+    
+    @Test func testDisplayNameForHumans() async throws {
+        let record = MedicalRecord()
+        
+        // Test with all three fields
+        record.personalFamilyName = "Smith"
+        record.personalGivenName = "John"
+        record.personalNickName = "Johnny"
+        #expect(record.displayName == "Smith - John - Johnny")
+        
+        // Test with only family and given name
+        record.personalNickName = ""
+        #expect(record.displayName == "Smith - John")
+        
+        // Test with only family name
+        record.personalGivenName = ""
+        #expect(record.displayName == "Smith")
+        
+        // Test with only given name
+        record.personalFamilyName = ""
+        record.personalGivenName = "John"
+        #expect(record.displayName == "John")
+        
+        // Test with only nickname
+        record.personalGivenName = ""
+        record.personalNickName = "Johnny"
+        #expect(record.displayName == "Johnny")
+        
+        // Test with family and nickname only
+        record.personalFamilyName = "Smith"
+        record.personalGivenName = ""
+        record.personalNickName = "Johnny"
+        #expect(record.displayName == "Smith - Johnny")
+        
+        // Test with all empty
+        record.personalFamilyName = ""
+        record.personalNickName = ""
+        #expect(record.displayName == "Person")
+    }
+    
+    @Test func testDisplayNameForPets() async throws {
+        let record = MedicalRecord()
+        record.isPet = true
+        
+        // Test with pet name
+        record.personalName = "Fluffy"
+        #expect(record.displayName == "Fluffy")
+        
+        // Test with empty pet name
+        record.personalName = ""
+        #expect(record.displayName == "Pet")
+    }
+    
+    @Test func testSortKeyOrdering() async throws {
+        let record1 = MedicalRecord()
+        record1.personalFamilyName = "Apple"
+        record1.personalGivenName = "Aaron"
+        
+        let record2 = MedicalRecord()
+        record2.personalFamilyName = "Banana"
+        record2.personalGivenName = "Bob"
+        
+        let record3 = MedicalRecord()
+        record3.personalFamilyName = "Apple"
+        record3.personalGivenName = "Zoe"
+        
+        // Test alphabetical ordering
+        #expect(record1.sortKey < record2.sortKey)
+        #expect(record1.sortKey < record3.sortKey)
+        #expect(record3.sortKey < record2.sortKey)
+        
+        // Test case-insensitive ordering
+        let record4 = MedicalRecord()
+        record4.personalFamilyName = "apple"
+        record4.personalGivenName = "aaron"
+        #expect(record1.sortKey == record4.sortKey)
+    }
 }

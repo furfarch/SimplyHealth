@@ -76,7 +76,7 @@ struct ExportRecordSheet: View {
 
     @MainActor
     private func writeExport(data: Data, type: String) async throws {
-        let safeName = displayName.replacingOccurrences(of: "/", with: "-")
+        let safeName = record.displayName.replacingOccurrences(of: "/", with: "-")
         let fileName = "\(safeName.isEmpty ? "MedicalRecord" : safeName).\(type)"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try data.write(to: url, options: [.atomic])
@@ -88,16 +88,5 @@ struct ExportRecordSheet: View {
         exportURL = url
     }
 
-    private var displayName: String {
-        let family = record.personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let given = record.personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if record.isPet {
-            let name = record.personalName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Pet" : name
-        }
-        if family.isEmpty && given.isEmpty {
-            return "MedicalRecord"
-        }
-        return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-    }
+
 }

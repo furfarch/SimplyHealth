@@ -25,7 +25,7 @@ struct SyncStatusDetailView: View, Identifiable {
                     HStack {
                         Text("Record")
                         Spacer()
-                        Text(displayName())
+                        Text(record.displayName)
                     }
                     HStack {
                         Text("Cloud Enabled")
@@ -142,10 +142,5 @@ struct SyncStatusDetailView: View, Identifiable {
         isSyncing = false
     }
 
-    private func displayName() -> String {
-        if record.isPet {
-            return record.personalName.isEmpty ? "Pet" : record.personalName
-        }
-        return [record.personalGivenName, record.personalFamilyName].filter { !$0.isEmpty }.joined(separator: " ")
-    }
+
 }

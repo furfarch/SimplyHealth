@@ -23,7 +23,7 @@ struct ExportSettingsView: View {
                         Button {
                             exportRecord = record
                         } label: {
-                            Text(displayName(for: record))
+                            Text(record.displayName)
                         }
                     }
                 }
@@ -35,19 +35,7 @@ struct ExportSettingsView: View {
         }
     }
 
-    private func displayName(for record: MedicalRecord) -> String {
-        if record.isPet {
-            let name = record.personalName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Pet" : name
-        } else {
-            let family = record.personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let given = record.personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let nick = record.personalNickName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !nick.isEmpty { return nick }
-            if family.isEmpty && given.isEmpty { return "Person" }
-            return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-        }
-    }
+
 }
 
 #Preview {

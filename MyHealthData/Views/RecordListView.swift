@@ -3,7 +3,11 @@ import SwiftData
 
 struct RecordListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \MedicalRecord.updatedAt, order: .reverse) private var records: [MedicalRecord]
+    @Query private var allRecords: [MedicalRecord]
+    
+    private var records: [MedicalRecord] {
+        allRecords.sorted { $0.sortKey < $1.sortKey }
+    }
 
     @State private var activeRecord: MedicalRecord? = nil
     @State private var showEditor: Bool = false
@@ -150,20 +154,7 @@ struct RecordListView: View {
         }
     }
 
-    private func displayName(for record: MedicalRecord) -> String {
-        if record.isPet {
-            let name = record.personalName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !name.isEmpty { return name }
-            return "Pet"
-        } else {
-            let family = record.personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let given = record.personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let nick = record.personalNickName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !nick.isEmpty { return nick }
-            if family.isEmpty && given.isEmpty { return "Person" }
-            return [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-        }
-    }
+
 
     @ViewBuilder
     private var listContent: some View {
@@ -180,7 +171,7 @@ struct RecordListView: View {
                         Image(systemName: record.isPet ? "cat" : "person")
 
                         VStack(alignment: .leading) {
-                            Text(displayName(for: record)).font(.headline)
+                            Text(record.displayName).font(.headline)
                             Text(record.updatedAt, style: .date)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
