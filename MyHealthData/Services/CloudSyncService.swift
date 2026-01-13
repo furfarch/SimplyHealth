@@ -265,7 +265,6 @@ final class CloudSyncService {
                 operation.qualityOfService = .userInitiated
                 
                 var savedShareRecord: CKShare?
-                var saveError: Error?
                 
                 // Track individual record saves
                 operation.perRecordSaveBlock = { recordID, result in
@@ -278,9 +277,6 @@ final class CloudSyncService {
                         }
                     case .failure(let error):
                         ShareDebugStore.shared.appendLog("createShare: failed to save record=\(recordID.recordName) error=\(error)")
-                        if saveError == nil {
-                            saveError = error
-                        }
                     }
                 }
                 
@@ -327,24 +323,30 @@ final class CloudSyncService {
                 ShareDebugStore.shared.appendLog("createShare: share URL is nil after save, refetching from server")
                 
                 // Small delay to allow server-side processing
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 
-                if let refetchedShare = try? await database.record(for: savedShare.recordID) as? CKShare {
-                    ShareDebugStore.shared.lastShareURL = refetchedShare.url
-                    ShareDebugStore.shared.appendLog("createShare: refetched share url=\(String(describing: refetchedShare.url))")
-                    
-                    // Verify the root record has the share reference
-                    if let refetchedRoot = try? await database.record(for: root.recordID) {
-                        if let shareRef = refetchedRoot.share {
-                            ShareDebugStore.shared.appendLog("createShare: root record has share reference=\(shareRef.recordID.recordName)")
-                        } else {
-                            ShareDebugStore.shared.appendLog("createShare: WARNING - root record does not have share reference")
+                do {
+                    if let refetchedShare = try await database.record(for: savedShare.recordID) as? CKShare {
+                        ShareDebugStore.shared.lastShareURL = refetchedShare.url
+                        ShareDebugStore.shared.appendLog("createShare: refetched share url=\(String(describing: refetchedShare.url))")
+                        
+                        // Verify the root record has the share reference
+                        do {
+                            if let refetchedRoot = try await database.record(for: root.recordID) {
+                                if let shareRef = refetchedRoot.share {
+                                    ShareDebugStore.shared.appendLog("createShare: root record has share reference=\(shareRef.recordID.recordName)")
+                                } else {
+                                    ShareDebugStore.shared.appendLog("createShare: WARNING - root record does not have share reference")
+                                }
+                            }
+                        } catch {
+                            ShareDebugStore.shared.appendLog("createShare: WARNING - failed to refetch root record: \(error)")
                         }
+                        
+                        return refetchedShare
                     }
-                    
-                    return refetchedShare
-                } else {
-                    ShareDebugStore.shared.appendLog("createShare: WARNING - refetch failed or returned nil")
+                } catch {
+                    ShareDebugStore.shared.appendLog("createShare: WARNING - refetch of share failed: \(error)")
                 }
             }
             
