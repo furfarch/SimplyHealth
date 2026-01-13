@@ -234,12 +234,40 @@ final class CloudSyncService {
             }
         }
 
+        // Check if root already has a share reference
+        if let existingShareRef = root.share {
+            ShareDebugStore.shared.appendLog("createShare: root record already has share reference id=\(existingShareRef.recordID.recordName), attempting to fetch")
+            do {
+                if let existingShare = try await database.record(for: existingShareRef.recordID) as? CKShare {
+                    record.cloudShareRecordName = existingShare.recordID.recordName
+                    ShareDebugStore.shared.lastShareURL = existingShare.url
+                    ShareDebugStore.shared.appendLog("createShare: found existing share via root reference id=\(existingShare.recordID.recordName) url=\(String(describing: existingShare.url))")
+                    return existingShare
+                }
+            } catch {
+                ShareDebugStore.shared.appendLog("createShare: failed to fetch share via root reference: \(error)")
+                // Continue to create new share
+            }
+        }
+
         // Create new share
         let share = CKShare(rootRecord: root)
         share[CKShare.SystemFieldKey.title] = "Shared Medical Record" as CKRecordValue
 
         do {
             let (savedRecordsByID, _) = try await database.modifyRecords(saving: [root, share], deleting: [])
+
+            // Debug: log all returned record IDs and their success/failure status
+            ShareDebugStore.shared.appendLog("createShare: modifyRecords returned \(savedRecordsByID.count) results")
+            for (recordID, result) in savedRecordsByID {
+                switch result {
+                case .success(let rec):
+                    let isShare = rec is CKShare
+                    ShareDebugStore.shared.appendLog("createShare: success for recordID=\(recordID.recordName) type=\(rec.recordType) isShare=\(isShare)")
+                case .failure(let err):
+                    ShareDebugStore.shared.appendLog("createShare: failure for recordID=\(recordID.recordName) error=\(err)")
+                }
+            }
 
             let savedValues: [CKRecord] = savedRecordsByID.values.compactMap { result in
                 switch result {
@@ -255,6 +283,19 @@ final class CloudSyncService {
                 ShareDebugStore.shared.lastShareURL = savedShare.url
                 ShareDebugStore.shared.appendLog("createShare: created share id=\(savedShare.recordID.recordName) zone=\(shareZoneName) url=\(String(describing: savedShare.url))")
                 return savedShare
+            }
+
+            // Fallback: try to fetch the share directly by its record ID
+            ShareDebugStore.shared.appendLog("createShare: share not in immediate results, attempting direct fetch for share ID=\(share.recordID.recordName)")
+            do {
+                if let fetchedShare = try await database.record(for: share.recordID) as? CKShare {
+                    record.cloudShareRecordName = fetchedShare.recordID.recordName
+                    ShareDebugStore.shared.lastShareURL = fetchedShare.url
+                    ShareDebugStore.shared.appendLog("createShare: fetched share id=\(fetchedShare.recordID.recordName) zone=\(shareZoneName) url=\(String(describing: fetchedShare.url))")
+                    return fetchedShare
+                }
+            } catch {
+                ShareDebugStore.shared.appendLog("createShare: direct fetch failed: \(error)")
             }
 
             throw NSError(domain: "CloudSyncService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to obtain saved CKShare from server (no share returned in modifyRecords results)."])
