@@ -322,12 +322,29 @@ final class CloudSyncService {
             ShareDebugStore.shared.lastShareURL = savedShare.url
             
             // If URL is nil, refetch to get the server-populated URL
+            // Also refetch the root record to ensure the share reference is properly established
             if savedShare.url == nil {
                 ShareDebugStore.shared.appendLog("createShare: share URL is nil after save, refetching from server")
+                
+                // Small delay to allow server-side processing
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
                 if let refetchedShare = try? await database.record(for: savedShare.recordID) as? CKShare {
                     ShareDebugStore.shared.lastShareURL = refetchedShare.url
                     ShareDebugStore.shared.appendLog("createShare: refetched share url=\(String(describing: refetchedShare.url))")
+                    
+                    // Verify the root record has the share reference
+                    if let refetchedRoot = try? await database.record(for: root.recordID) {
+                        if let shareRef = refetchedRoot.share {
+                            ShareDebugStore.shared.appendLog("createShare: root record has share reference=\(shareRef.recordID.recordName)")
+                        } else {
+                            ShareDebugStore.shared.appendLog("createShare: WARNING - root record does not have share reference")
+                        }
+                    }
+                    
                     return refetchedShare
+                } else {
+                    ShareDebugStore.shared.appendLog("createShare: WARNING - refetch failed or returned nil")
                 }
             }
             
