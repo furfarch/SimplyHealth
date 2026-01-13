@@ -189,4 +189,86 @@ struct MyHealthDataTests {
         record4.personalGivenName = "aaron"
         #expect(record1.sortKey == record4.sortKey)
     }
+    
+    @Test func testSortKeyHumansBeforePets() async throws {
+        // Create human records
+        let human1 = MedicalRecord()
+        human1.isPet = false
+        human1.personalFamilyName = "Zebra"
+        human1.personalGivenName = "Zoe"
+        
+        let human2 = MedicalRecord()
+        human2.isPet = false
+        human2.personalFamilyName = "Apple"
+        human2.personalGivenName = "Aaron"
+        
+        // Create pet records
+        let pet1 = MedicalRecord()
+        pet1.isPet = true
+        pet1.personalName = "Fluffy"
+        
+        let pet2 = MedicalRecord()
+        pet2.isPet = true
+        pet2.personalName = "Buddy"
+        
+        // Test that all humans come before all pets
+        #expect(human1.sortKey < pet1.sortKey, "Human 'Zebra' should come before pet 'Fluffy'")
+        #expect(human1.sortKey < pet2.sortKey, "Human 'Zebra' should come before pet 'Buddy'")
+        #expect(human2.sortKey < pet1.sortKey, "Human 'Apple' should come before pet 'Fluffy'")
+        #expect(human2.sortKey < pet2.sortKey, "Human 'Apple' should come before pet 'Buddy'")
+        
+        // Test alphabetical ordering within humans
+        #expect(human2.sortKey < human1.sortKey, "Human 'Apple' should come before 'Zebra'")
+        
+        // Test alphabetical ordering within pets
+        #expect(pet2.sortKey < pet1.sortKey, "Pet 'Buddy' should come before 'Fluffy'")
+    }
+    
+    @Test @MainActor func testRecordListSorting() async throws {
+        // Create an in-memory container for testing
+        let schema = Schema([MedicalRecord.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        
+        // Create test records with mixed order
+        let pet1 = MedicalRecord()
+        pet1.isPet = true
+        pet1.personalName = "Zebra"
+        context.insert(pet1)
+        
+        let human1 = MedicalRecord()
+        human1.isPet = false
+        human1.personalFamilyName = "Zane"
+        context.insert(human1)
+        
+        let pet2 = MedicalRecord()
+        pet2.isPet = true
+        pet2.personalName = "Alpha"
+        context.insert(pet2)
+        
+        let human2 = MedicalRecord()
+        human2.isPet = false
+        human2.personalFamilyName = "Alice"
+        context.insert(human2)
+        
+        try context.save()
+        
+        // Fetch all records
+        let allRecords = try context.fetch(FetchDescriptor<MedicalRecord>())
+        
+        // Sort them as the UI does
+        let sorted = allRecords.sorted { $0.sortKey < $1.sortKey }
+        
+        // Verify order: humans first (alphabetically), then pets (alphabetically)
+        #expect(sorted.count == 4, "Should have 4 records")
+        #expect(sorted[0].displayName == "Alice", "First should be human 'Alice'")
+        #expect(sorted[0].isPet == false, "First should be human")
+        #expect(sorted[1].displayName == "Zane", "Second should be human 'Zane'")
+        #expect(sorted[1].isPet == false, "Second should be human")
+        #expect(sorted[2].displayName == "Alpha", "Third should be pet 'Alpha'")
+        #expect(sorted[2].isPet == true, "Third should be pet")
+        #expect(sorted[3].displayName == "Zebra", "Fourth should be pet 'Zebra'")
+        #expect(sorted[3].isPet == true, "Fourth should be pet")
+    }
 }
