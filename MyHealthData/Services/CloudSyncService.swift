@@ -270,16 +270,16 @@ final class CloudSyncService {
             // This is critical for establishing the share-root relationship in CloudKit
             ShareDebugStore.shared.appendLog("createShare: saving root=\(root.recordID.recordName) and share=\(share.recordID.recordName) in zone=\(shareZoneName)")
             
-            let (saveResults, _): ([CKRecord.ID: Result<CKRecord, Error>], [CKRecord.ID: Result<Void, Error>]) = try await withCheckedThrowingContinuation { continuation in
+            let saveResults: [CKRecord.ID: Result<CKRecord, Error>] = try await withCheckedThrowingContinuation { continuation in
                 let operation = CKModifyRecordsOperation(recordsToSave: [root, share], recordIDsToDelete: [])
                 operation.savePolicy = .allKeys  // Force save even if root hasn't changed
                 operation.qualityOfService = .userInitiated
                 
-                operation.modifyRecordsResultBlock = { result in
+                operation.modifyRecordsResultBlock = { (result: Result<(saveResults: [CKRecord.ID: Result<CKRecord, Error>], deleteResults: [CKRecord.ID: Result<Void, Error>]), Error>) in
                     switch result {
-                    case .success(let (saveResults, deleteResults)):
-                        ShareDebugStore.shared.appendLog("createShare: operation succeeded with \(saveResults.count) save results")
-                        continuation.resume(returning: (saveResults, deleteResults))
+                    case .success(let resultTuple):
+                        ShareDebugStore.shared.appendLog("createShare: operation succeeded with \(resultTuple.saveResults.count) save results")
+                        continuation.resume(returning: resultTuple.saveResults)
                     case .failure(let error):
                         ShareDebugStore.shared.appendLog("createShare: operation failed: \(error)")
                         continuation.resume(throwing: error)
