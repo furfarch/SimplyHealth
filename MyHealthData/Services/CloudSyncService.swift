@@ -224,7 +224,8 @@ final class CloudSyncService {
         if let shareRecordName = record.cloudShareRecordName {
             let shareID = CKRecord.ID(recordName: shareRecordName, zoneID: shareZoneID)
             do {
-                if let existing = try await database.record(for: shareID) as? CKShare {
+                let existingRecord = try await database.record(for: shareID)
+                if let existing = existingRecord as? CKShare {
                     ShareDebugStore.shared.lastShareURL = existing.url
                     ShareDebugStore.shared.appendLog("createShare: reusing existing share id=\(existing.recordID.recordName) zone=\(shareZoneName) url=\(String(describing: existing.url))")
                     return existing
@@ -243,7 +244,8 @@ final class CloudSyncService {
         if let existingShareRef = root.share {
             ShareDebugStore.shared.appendLog("createShare: root record already has share reference id=\(existingShareRef.recordID.recordName), attempting to fetch")
             do {
-                if let existingShare = try await database.record(for: existingShareRef.recordID) as? CKShare {
+                let existingShareRecord = try await database.record(for: existingShareRef.recordID)
+                if let existingShare = existingShareRecord as? CKShare {
                     record.cloudShareRecordName = existingShare.recordID.recordName
                     ShareDebugStore.shared.lastShareURL = existingShare.url
                     ShareDebugStore.shared.appendLog("createShare: found existing share via root reference id=\(existingShare.recordID.recordName) url=\(String(describing: existingShare.url))")
@@ -268,7 +270,7 @@ final class CloudSyncService {
             // This is critical for establishing the share-root relationship in CloudKit
             ShareDebugStore.shared.appendLog("createShare: saving root=\(root.recordID.recordName) and share=\(share.recordID.recordName) in zone=\(shareZoneName)")
             
-            let (saveResults, _) = try await withCheckedThrowingContinuation { continuation in
+            let (saveResults, _): ([CKRecord.ID: Result<CKRecord, Error>], [CKRecord.ID: Result<Void, Error>]) = try await withCheckedThrowingContinuation { continuation in
                 let operation = CKModifyRecordsOperation(recordsToSave: [root, share], recordIDsToDelete: [])
                 operation.savePolicy = .allKeys  // Force save even if root hasn't changed
                 operation.qualityOfService = .userInitiated
@@ -334,7 +336,8 @@ final class CloudSyncService {
                     try await Task.sleep(nanoseconds: currentDelay)
                     
                     do {
-                        if let fetchedShare = try await database.record(for: finalShare.recordID) as? CKShare {
+                        let fetchedRecord = try await database.record(for: finalShare.recordID)
+                        if let fetchedShare = fetchedRecord as? CKShare {
                             ShareDebugStore.shared.appendLog("createShare: refetched share id=\(fetchedShare.recordID.recordName) url=\(String(describing: fetchedShare.url))")
                             
                             if fetchedShare.url != nil {
