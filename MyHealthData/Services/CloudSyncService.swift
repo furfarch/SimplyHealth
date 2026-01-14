@@ -294,9 +294,19 @@ final class CloudSyncService {
                     case .success:
                         // Check if any records failed to save
                         if !recordErrors.isEmpty {
-                            let firstError = recordErrors.values.first!
                             ShareDebugStore.shared.appendLog("createShare: operation completed but \(recordErrors.count) record(s) failed")
-                            continuation.resume(throwing: firstError)
+                            // Log all errors
+                            for (recordID, error) in recordErrors {
+                                ShareDebugStore.shared.appendLog("createShare: record \(recordID.recordName) error: \(error)")
+                            }
+                            // Create a composite error with all failures
+                            let errorDescription = recordErrors.map { "\($0.key.recordName): \($0.value.localizedDescription)" }.joined(separator: ", ")
+                            let compositeError = NSError(
+                                domain: "CloudSyncService",
+                                code: 7,
+                                userInfo: [NSLocalizedDescriptionKey: "Failed to save \(recordErrors.count) record(s): \(errorDescription)"]
+                            )
+                            continuation.resume(throwing: compositeError)
                         } else {
                             ShareDebugStore.shared.appendLog("createShare: operation succeeded with \(recordsSaved.count) saved records")
                             continuation.resume(returning: recordsSaved)
