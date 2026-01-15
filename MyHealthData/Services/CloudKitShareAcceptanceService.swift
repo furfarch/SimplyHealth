@@ -2,13 +2,12 @@ import Foundation
 import CloudKit
 import SwiftData
 
-/// Accepts a CloudKit share invitation and then triggers a refresh from the Shared database.
+/// Accepts a CloudKit share invitation and imports the shared root record so it appears in the app.
 @MainActor
 final class CloudKitShareAcceptanceService {
     static let shared = CloudKitShareAcceptanceService()
 
     private let containerIdentifier = "iCloud.com.furfarch.MyHealthData"
-
     private var container: CKContainer { CKContainer(identifier: containerIdentifier) }
 
     private init() {}
@@ -20,20 +19,18 @@ final class CloudKitShareAcceptanceService {
             let metadata = try await fetchShareMetadata(for: url)
             try await acceptShareMetadata(metadata)
 
-            ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: accepted share, importing shared records")
+            let sharedDB = container.sharedCloudDatabase
 
-            // Import the root record (and potentially descendants later) into SwiftData.
-            let rootIDs: [CKRecord.ID] = [metadata.rootRecordID]
-            let database = container.sharedCloudDatabase
-            let recordsByID = try await fetchRecords(by: rootIDs, from: database)
+            // Fetch just the shared root record (so it appears immediately).
+            let rootID = Self.rootRecordID(from: metadata)
+            let recordsByID = try await fetchRecords(by: [rootID], from: sharedDB)
 
-            // Best-effort: also fetch the share itself so we can show participants.
+            // Best-effort: also fetch the share record for participant display.
             var fetchedShare: CKShare?
             do {
-                let shareByID = try await fetchRecords(by: [metadata.share.recordID], from: database)
+                let shareByID = try await fetchRecords(by: [metadata.share.recordID], from: sharedDB)
                 fetchedShare = shareByID[metadata.share.recordID] as? CKShare
             } catch {
-                // not fatal
                 ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: unable to fetch CKShare for participants: \(error)")
             }
 
@@ -49,6 +46,20 @@ final class CloudKitShareAcceptanceService {
             ShareDebugStore.shared.lastError = error
         }
     }
+
+    private static func rootRecordID(from metadata: CKShare.Metadata) -> CKRecord.ID {
+        // CloudKit sharing has been iOS 16+ for our acceptance flow.
+        if #available(iOS 16.0, macOS 13.0, *) {
+            if let id = metadata.hierarchicalRootRecordID { return id }
+            // If this ever happens, we can't safely resolve the root record.
+            return metadata.share.recordID
+        }
+
+        // Older OS versions are not supported for sharing flow.
+        return metadata.share.recordID
+    }
+
+    // MARK: - CloudKit helpers
 
     private func fetchShareMetadata(for url: URL) async throws -> CKShare.Metadata {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CKShare.Metadata, Error>) in
@@ -131,8 +142,6 @@ final class CloudKitShareAcceptanceService {
     }
 }
 
-// MARK: - Importer
-
 @MainActor
 private enum CloudKitSharedImporter {
     static func upsertSharedMedicalRecords(_ ckRecords: some Sequence<CKRecord>, share: CKShare?, modelContext: ModelContext) {
@@ -200,17 +209,12 @@ private enum CloudKitSharedImporter {
     }
 
     private static func participantsSummary(from share: CKShare) -> String {
-        let participants = share.participants
-        if participants.isEmpty { return "Only you" }
-
-        // Show a compact list: email if present, else user recordName.
-        let parts: [String] = participants.compactMap { p in
+        let parts: [String] = share.participants.compactMap { p in
             if let email = p.userIdentity.lookupInfo?.emailAddress, !email.isEmpty {
                 return email
             }
-            let name = p.userIdentity.userRecordID?.recordName
-            return name
+            return p.userIdentity.userRecordID?.recordName
         }
-        return parts.isEmpty ? "Participants" : parts.joined(separator: ", ")
+        return parts.isEmpty ? "Only you" : parts.joined(separator: ", ")
     }
 }
