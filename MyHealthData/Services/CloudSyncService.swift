@@ -29,6 +29,7 @@ final class CloudSyncService {
     private let nanosecondsPerSecond: Double = 1_000_000_000 // For logging conversion
     
     // Sharing constants
+    // Note: `shareTitle` is used by CloudSharingDelegate (must be accessible within module)
     let shareTitle = "Shared Medical Record"
 
     /// CloudKit record type used for MedicalRecord mirrors.
@@ -498,8 +499,8 @@ final class CloudSyncService {
         let saved = try await database.modifyRecords(saving: [root, share], deleting: [], savePolicy: .allKeys)
         
         guard let savedShare = saved.saveResults.values.compactMap({ try? $0.get() as? CKShare }).first else {
-            let error = NSError(domain: "CloudSyncService", code: 9, userInfo: [NSLocalizedDescriptionKey: "Failed to save share"])
-            ShareDebugStore.shared.appendLog("makeCloudSharingController: failed to save share")
+            let error = NSError(domain: "CloudSyncService", code: 9, userInfo: [NSLocalizedDescriptionKey: "Share was created but not found in save results. Ensure CloudKit schema allows sharing."])
+            ShareDebugStore.shared.appendLog("makeCloudSharingController: failed to retrieve saved share from results")
             throw error
         }
         
