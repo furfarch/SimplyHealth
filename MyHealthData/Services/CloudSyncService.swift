@@ -27,6 +27,9 @@ final class CloudSyncService {
     private let shareURLPopulationDelay: UInt64 = 1_000_000_000 // 1 second
     private let shareURLMaxRetries = 3 // Maximum number of refetch attempts
     private let nanosecondsPerSecond: Double = 1_000_000_000 // For logging conversion
+    
+    // Sharing constants
+    private let shareTitle = "Shared Medical Record"
 
     /// CloudKit record type used for MedicalRecord mirrors.
     /// IMPORTANT:
@@ -259,7 +262,7 @@ final class CloudSyncService {
 
         // Create new share
         let share = CKShare(rootRecord: root)
-        share[CKShare.SystemFieldKey.title] = "Shared Medical Record" as CKRecordValue
+        share[CKShare.SystemFieldKey.title] = shareTitle as CKRecordValue
         // Set restrictive permission - only explicitly invited participants can access
         // This is required for the share URL to be properly generated
         share.publicPermission = .none
@@ -475,7 +478,7 @@ final class CloudSyncService {
                     controller.delegate = delegate
                     controller.availablePermissions = [.allowReadWrite, .allowPrivate]
                     controller.modalPresentationStyle = .formSheet
-                    controller.title = "Shared Medical Record"
+                    controller.title = shareTitle
                     return controller
                 }
             } catch {
@@ -500,7 +503,7 @@ final class CloudSyncService {
                 do {
                     // Create the share
                     let share = CKShare(rootRecord: root)
-                    share[CKShare.SystemFieldKey.title] = "Shared Medical Record" as CKRecordValue
+                    share[CKShare.SystemFieldKey.title] = self.shareTitle as CKRecordValue
                     share.publicPermission = .none
                     
                     ShareDebugStore.shared.appendLog("makeCloudSharingController preparation: created CKShare for root=\(root.recordID.recordName)")
@@ -522,7 +525,7 @@ final class CloudSyncService {
         controller.delegate = delegate
         controller.availablePermissions = [.allowReadWrite, .allowPrivate]
         controller.modalPresentationStyle = .formSheet
-        controller.title = "Shared Medical Record"
+        controller.title = shareTitle
         
         ShareDebugStore.shared.appendLog("makeCloudSharingController: created UICloudSharingController with preparation handler")
         return controller
@@ -701,7 +704,7 @@ class CloudSharingDelegate: NSObject, UICloudSharingControllerDelegate {
         
         onComplete?(.success(nil))
     }
-    func itemTitle(for c: UICloudSharingController) -> String? { "Shared Medical Record" }
+    func itemTitle(for c: UICloudSharingController) -> String? { CloudSyncService.shared.shareTitle }
     func itemThumbnailData(for c: UICloudSharingController) -> Data? { nil }
     func itemType(for c: UICloudSharingController) -> String? { "public.data" }
 }
