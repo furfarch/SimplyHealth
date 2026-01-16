@@ -10,19 +10,13 @@ final class PetYearlyCostEntry {
     var uuid: String
     var id: String { uuid }
 
-    /// e.g. "Vet Check Up", "Food", "Insurance"
     var title: String
-
-    /// Date of the expense
     var date: Date
-
-    /// Amount paid for this entry
-    var amount: Double
-
+    var amount: Double?
     var note: String
 
-    // Intentionally no inverse relationship back to MedicalRecord.
-    // The owning relationship lives on MedicalRecord.petYearlyCosts with cascade delete.
+    // Keep a plain reference to the owning record; the inverse is declared on MedicalRecord.
+    var record: MedicalRecord?
 
     init(
         uuid: String = UUID().uuidString,
@@ -30,8 +24,9 @@ final class PetYearlyCostEntry {
         updatedAt: Date = Date(),
         title: String = "",
         date: Date = Date(),
-        amount: Double = 0,
-        note: String = ""
+        amount: Double? = nil,
+        note: String = "",
+        record: MedicalRecord? = nil
     ) {
         self.uuid = uuid
         self.createdAt = createdAt
@@ -40,5 +35,6 @@ final class PetYearlyCostEntry {
         self.date = date
         self.amount = amount
         self.note = note
+        self.record = record
     }
 }

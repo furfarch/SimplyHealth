@@ -295,7 +295,9 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
             record.emergencyNumber = ckRecord["emergencyNumber"] as? String ?? ""
             record.emergencyEmail = ckRecord["emergencyEmail"] as? String ?? ""
 
-            record.isCloudEnabled = true
+            // Respect global iCloud toggle. Importing should not auto-enable cloud for the user.
+            let cloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
+            record.isCloudEnabled = cloudEnabled
             record.cloudRecordName = ckRecord.recordID.recordName
 
             if existing == nil {

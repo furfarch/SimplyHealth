@@ -32,7 +32,7 @@ final class MedicalRecord {
     var ownerPhone: String
     var ownerEmail: String
 
-    // Pet vet details
+    // Pet veterinarian details
     var vetClinicName: String
     var vetContactName: String
     var vetPhone: String
@@ -75,14 +75,6 @@ final class MedicalRecord {
 
     @Relationship(deleteRule: .cascade, inverse: \EmergencyContact.record)
     var emergencyContacts: [EmergencyContact] = []
-
-    // Pet costs (date-based entries)
-    @Relationship(deleteRule: .cascade)
-    var petYearlyCosts: [PetYearlyCostEntry] = []
-
-    // Human doctors (up to 5)
-    @Relationship(deleteRule: .cascade, inverse: \HumanDoctorEntry.record)
-    var humanDoctors: [HumanDoctorEntry] = []
 
     // CloudKit integration flags (opt-in per-record)
     var isCloudEnabled: Bool = false
@@ -194,16 +186,15 @@ final class MedicalRecord {
         ownerName: String = "",
         ownerPhone: String = "",
         ownerEmail: String = "",
-        emergencyName: String = "",
-        emergencyNumber: String = "",
-        emergencyEmail: String = "",
-        // Vet
         vetClinicName: String = "",
         vetContactName: String = "",
         vetPhone: String = "",
         vetEmail: String = "",
         vetAddress: String = "",
         vetNote: String = "",
+        emergencyName: String = "",
+        emergencyNumber: String = "",
+        emergencyEmail: String = "",
         blood: [BloodEntry] = [],
         drugs: [DrugEntry] = [],
         vaccinations: [VaccinationEntry] = [],
@@ -214,8 +205,6 @@ final class MedicalRecord {
         medicaldocument: [MedicalDocumentEntry] = [],
         weights: [WeightEntry] = [],
         emergencyContacts: [EmergencyContact] = [],
-        petYearlyCosts: [PetYearlyCostEntry] = [],
-        humanDoctors: [HumanDoctorEntry] = [],
         isCloudEnabled: Bool = false,
         cloudRecordName: String? = nil,
         cloudShareRecordName: String? = nil,
@@ -245,17 +234,16 @@ final class MedicalRecord {
         self.ownerPhone = ownerPhone
         self.ownerEmail = ownerEmail
 
-        self.emergencyName = emergencyName
-        self.emergencyNumber = emergencyNumber
-        self.emergencyEmail = emergencyEmail
-
-        // vet fields
         self.vetClinicName = vetClinicName
         self.vetContactName = vetContactName
         self.vetPhone = vetPhone
         self.vetEmail = vetEmail
         self.vetAddress = vetAddress
         self.vetNote = vetNote
+
+        self.emergencyName = emergencyName
+        self.emergencyNumber = emergencyNumber
+        self.emergencyEmail = emergencyEmail
 
         self.blood = blood
         self.drugs = drugs
@@ -267,27 +255,11 @@ final class MedicalRecord {
         self.medicaldocument = medicaldocument
         self.weights = weights
         self.emergencyContacts = emergencyContacts
-        self.petYearlyCosts = petYearlyCosts
-        self.humanDoctors = humanDoctors
 
         self.isCloudEnabled = isCloudEnabled
         self.cloudRecordName = cloudRecordName
         self.cloudShareRecordName = cloudShareRecordName
         self.isSharingEnabled = isSharingEnabled
         self.shareParticipantsSummary = shareParticipantsSummary
-    }
-
-    func copyVetDetails(from contact: EmergencyContact) {
-        vetContactName = contact.name
-        vetPhone = contact.phone
-        vetEmail = contact.email
-        // EmergencyContact doesn't currently have an address field.
-        if !contact.note.isEmpty {
-            if vetNote.isEmpty {
-                vetNote = contact.note
-            } else {
-                vetNote = vetNote + "\n" + contact.note
-            }
-        }
     }
 }

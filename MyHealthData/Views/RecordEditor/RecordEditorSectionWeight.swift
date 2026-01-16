@@ -12,45 +12,71 @@ struct RecordEditorSectionWeight: View {
         self.onChange = onChange
     }
 
+    private var sortedWeights: [WeightEntry] {
+        record.weights.sorted { (lhs: WeightEntry, rhs: WeightEntry) in
+            (lhs.date ?? .distantPast) > (rhs.date ?? .distantPast)
+        }
+    }
+
     var body: some View {
         Section {
-            ForEach(Array(record.weights.indices), id: \.self) { idx in
-                // Bindings for the specific weight entry fields
-                let dateBinding = Binding(
-                    get: { record.weights[idx].date ?? Date() },
-                    set: { record.weights[idx].date = $0 }
+            ForEach(sortedWeights, id: \.uuid) { entry in
+                DatePicker(
+                    "Date",
+                    selection: Binding(
+                        get: { entry.date ?? Date() },
+                        set: { entry.date = $0; onChange() }
+                    ),
+                    displayedComponents: .date
                 )
-
-                let weightKgBinding = Binding(
-                    get: { record.weights[idx].weightKg },
-                    set: { record.weights[idx].weightKg = $0 }
-                )
-
-                let commentBinding = Binding(
-                    get: { record.weights[idx].comment },
-                    set: { record.weights[idx].comment = $0 }
-                )
-
-                DatePicker("Date", selection: dateBinding, displayedComponents: .date)
 
                 HStack {
-                    TextField("Weight (kg)", value: weightKgBinding, format: .number)
+                    TextField(
+                        "Weight (kg)",
+                        text: Binding(
+                            get: {
+                                if let v = entry.weightKg { return String(v) }
+                                return ""
+                            },
+                            set: {
+                                let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if trimmed.isEmpty {
+                                    entry.weightKg = nil
+                                } else {
+                                    entry.weightKg = Double(trimmed.replacingOccurrences(of: ",", with: "."))
+                                }
+                                onChange()
+                            }
+                        )
+                    )
+                    .keyboardType(.decimalPad)
+
                     Spacer()
+
                     Button(role: .destructive) {
-                        record.weights.remove(at: idx)
-                        onChange()
+                        if let index = record.weights.firstIndex(where: { $0.uuid == entry.uuid }) {
+                            let removed = record.weights.remove(at: index)
+                            modelContext.delete(removed)
+                            onChange()
+                        }
                     } label: {
                         Image(systemName: "trash")
                     }
                 }
 
-                TextField("Comment", text: commentBinding, axis: .vertical)
-                    .lineLimit(1...3)
+                TextField(
+                    "Comment",
+                    text: Binding(
+                        get: { entry.comment },
+                        set: { entry.comment = $0; onChange() }
+                    ),
+                    axis: .vertical
+                )
+                .lineLimit(1...3)
             }
 
             Button("Add Weight Entry") {
-                let entry = WeightEntry()
-                entry.record = record
+                let entry = WeightEntry(record: record)
                 record.weights.append(entry)
                 onChange()
             }

@@ -52,13 +52,8 @@ final class CloudKitSharedMedicalRecordFetcher {
             return
         }
 
-        ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: importing shared records count=\(records.count)")
-
         for ckRecord in records {
-            guard let uuid = ckRecord["uuid"] as? String else {
-                ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: skipping record without uuid id=\(ckRecord.recordID.recordName)")
-                continue
-            }
+            guard let uuid = ckRecord["uuid"] as? String else { continue }
 
             let cloudUpdatedAt = (ckRecord["updatedAt"] as? Date) ?? Date.distantPast
 
@@ -100,13 +95,10 @@ final class CloudKitSharedMedicalRecordFetcher {
             record.emergencyNumber = ckRecord["emergencyNumber"] as? String ?? ""
             record.emergencyEmail = ckRecord["emergencyEmail"] as? String ?? ""
 
-            // Mark as shared/imported
-            record.isCloudEnabled = true
-            record.isSharingEnabled = true
+            // Respect global iCloud toggle. Importing should not auto-enable cloud for the user.
+            let cloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
+            record.isCloudEnabled = cloudEnabled
             record.cloudRecordName = ckRecord.recordID.recordName
-            if let shareRef = ckRecord.share {
-                record.cloudShareRecordName = shareRef.recordID.recordName
-            }
 
             if existing == nil {
                 context.insert(record)
@@ -115,7 +107,6 @@ final class CloudKitSharedMedicalRecordFetcher {
 
         do {
             try context.save()
-            ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: saved imported shared records")
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: failed saving import: \(error)")
         }

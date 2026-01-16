@@ -106,7 +106,7 @@ enum MedicalRecordMapper {
             weights: record.isPet ? record.weights.map {
                 .init(
                     weightDate: $0.date.map { iso8601.string(from: $0) } ?? "",
-                    weightKg: $0.weightKg,
+                    weightKg: $0.weightKg ?? 0,
                     weightComment: $0.comment
                 )
             } : []

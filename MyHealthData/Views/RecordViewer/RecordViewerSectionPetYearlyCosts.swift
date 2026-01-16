@@ -12,13 +12,12 @@ struct RecordViewerSectionPetYearlyCosts: View {
     }
 
     private var entriesForSelectedYear: [PetYearlyCostEntry] {
-        record.petYearlyCosts
-            .filter { Calendar.current.component(.year, from: $0.date) == selectedYear }
-            .sorted { $0.date > $1.date }
+        let filtered = record.petYearlyCosts.filter { Calendar.current.component(.year, from: $0.date) == selectedYear }
+        return filtered.sorted { $0.date > $1.date }
     }
 
     private var selectedYearTotal: Double {
-        entriesForSelectedYear.reduce(0) { $0 + $1.amount }
+        entriesForSelectedYear.reduce(0) { $0 + ($1.amount ?? 0) }
     }
 
     var body: some View {
@@ -61,8 +60,8 @@ struct RecordViewerSectionPetYearlyCosts: View {
                     rows: entriesForSelectedYear.map { entry in
                         [
                             entry.title,
-                            entry.date.formatted(date: .abbreviated, time: .omitted),
-                            String(format: "%.2f", entry.amount),
+                            entry.date.formatted(date: .numeric, time: .omitted),
+                            String(format: "%.2f", entry.amount ?? 0),
                             entry.note
                         ]
                     }
