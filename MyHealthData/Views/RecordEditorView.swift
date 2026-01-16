@@ -8,7 +8,6 @@ struct RecordEditorView: View {
     @Bindable var record: MedicalRecord
 
     @State private var isEditing = false
-    @State private var selectedSection: RecordSection = .personal
 
     @State private var saveErrorMessage: String?
 
@@ -20,40 +19,51 @@ struct RecordEditorView: View {
         self._isEditing = State(initialValue: startEditing)
     }
 
+    // Requested viewer order:
+    // A) Personal
+    // B) Emergency
+    // C) Vet / Doctor
+    // D) Weight (pets only)
+    // E) Blood
+    // F) Medications
+    // G) Vaccinations
+    // H) Allergies
+    // I) Illnesses
+    // J) Documents
+    // K) History
+    // L) Risks
+    // M) Costs (pets only)
+    // N) Record Details
     private var pagingSections: [RecordSection] {
+        var sections: [RecordSection] = [
+            .personal,
+            .emergency
+        ]
+
         if record.isPet {
-            return [
-                .personal,
-                .petVet,      // required: 2nd page
-                .petCosts,
-                .weight,      // required: pets can add weight
-                .emergency,
-                .details,
-                .blood,
-                .drugs,
-                .vaccinations,
-                .allergies,
-                .illnesses,
-                .medicalDocuments,
-                .medicalHistory,
-                .risks
-            ]
+            sections.append(.petVet)
+            sections.append(.weight)
         } else {
-            return [
-                .personal,
-                .doctors,
-                .emergency,
-                .details,
-                .blood,
-                .drugs,
-                .vaccinations,
-                .allergies,
-                .illnesses,
-                .medicalDocuments,
-                .medicalHistory,
-                .risks
-            ]
+            sections.append(.doctors)
         }
+
+        sections.append(contentsOf: [
+            .blood,
+            .drugs,
+            .vaccinations,
+            .allergies,
+            .illnesses,
+            .medicalDocuments,
+            .medicalHistory,
+            .risks
+        ])
+
+        if record.isPet {
+            sections.append(.petCosts)
+        }
+
+        sections.append(.details)
+        return sections
     }
 
     var body: some View {
@@ -66,7 +76,6 @@ struct RecordEditorView: View {
         }
         .navigationTitle(record.displayName)
         .toolbar {
-            // Status icons shown in both view + edit modes.
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 8) {
                     Text(record.displayName)
@@ -89,29 +98,19 @@ struct RecordEditorView: View {
         }
     }
 
-    private var storageStatusIcon: String {
-        record.isCloudEnabled ? "icloud" : "iphone"
-    }
-
-    private var storageStatusColor: Color {
-        record.isCloudEnabled ? .blue : .secondary
-    }
-
     private var editList: some View {
         List {
-            // Cloud sync & sharing are managed in Settings → iCloud.
-
             RecordEditorSectionPersonal(record: record, onChange: touch)
+
+            RecordEditorSectionEmergency(modelContext: modelContext, record: record, onChange: touch)
 
             if record.isPet {
                 RecordEditorSectionPetVet(record: record, onChange: touch)
-                RecordEditorSectionPetYearlyCosts(modelContext: modelContext, record: record, onChange: touch)
                 RecordEditorSectionWeight(modelContext: modelContext, record: record, onChange: touch)
+                RecordEditorSectionPetYearlyCosts(modelContext: modelContext, record: record, onChange: touch)
             } else {
                 RecordEditorSectionDoctors(modelContext: modelContext, record: record, onChange: touch)
             }
-
-            RecordEditorSectionEmergency(modelContext: modelContext, record: record, onChange: touch)
 
             RecordEditorSectionBlood(modelContext: modelContext, record: record, onChange: touch)
             RecordEditorSectionDrugs(modelContext: modelContext, record: record, onChange: touch)
@@ -121,8 +120,6 @@ struct RecordEditorView: View {
             RecordEditorSectionMedicalDocuments(modelContext: modelContext, record: record, onChange: touch)
             RecordEditorSectionMedicalHistory(modelContext: modelContext, record: record, onChange: touch)
             RecordEditorSectionRisks(modelContext: modelContext, record: record, onChange: touch)
-
-            // Export moved to Settings (per-record)
         }
     }
 
@@ -161,28 +158,26 @@ struct RecordEditorView: View {
         switch section {
         case .personal:
             RecordViewerSectionPersonal(record: record)
-        case .petVet:
-            RecordViewerSectionPetVet(record: record)
-        case .petCosts:
-            RecordViewerSectionPetYearlyCosts(record: record)
-        case .doctors:
-            RecordViewerSectionDoctors(record: record)
         case .emergency:
             RecordViewerSectionEmergency(record: record)
+        case .petVet:
+            RecordViewerSectionPetVet(record: record)
+        case .doctors:
+            RecordViewerSectionDoctors(record: record)
         case .weight:
             RecordViewerSectionEntries(
                 title: "Weight",
                 columns: ["Date", "Weight (kg)", "Comment"],
-                rows: record.weights.map { entry in
-                    [
-                        entry.date?.formatted(date: .abbreviated, time: .omitted) ?? "—",
-                        String(format: "%.1f", entry.weightKg),
-                        entry.comment
-                    ]
-                }
+                rows: record.weights
+                    .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
+                    .map { entry in
+                        [
+                            entry.date?.formatted(date: .abbreviated, time: .omitted) ?? "—",
+                            String(format: "%.1f", entry.weightKg),
+                            entry.comment
+                        ]
+                    }
             )
-        case .details:
-            RecordViewerSectionDetails(record: record)
         case .blood:
             RecordViewerSectionEntries(
                 title: "Blood Values",
@@ -283,63 +278,41 @@ struct RecordEditorView: View {
                     ]
                 }
             )
+        case .petCosts:
+            RecordViewerSectionPetYearlyCosts(record: record)
+        case .details:
+            RecordViewerSectionDetails(record: record)
         }
-    }
-
-    private func viewPage<Content: View>(_ section: RecordSection, @ViewBuilder content: () -> Content) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                RecordSectionHeaderView(section: section)
-
-                // Read-only content (no Section titles here; titles are shown in the header above)
-                VStack(alignment: .leading, spacing: 0) {
-                    content()
-                }
-                .background(.background)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(.horizontal)
-
-                Spacer(minLength: 24)
-            }
-        }
-        .tag(section)
     }
 
     private func touch() {
         record.updatedAt = Date()
     }
 
-    // MARK: - Toolbar
-
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup {
             Button(isEditing ? "Done" : "Edit") {
                 if isEditing {
-                    // Finish editing: update timestamp and persist changes.
                     record.updatedAt = Date()
                     Task { @MainActor in
                         do {
                             try modelContext.save()
 
-                            // If this record is cloud-enabled, push the latest edits to CloudKit now.
                             if record.isCloudEnabled {
                                 try await CloudSyncService.shared.syncIfNeeded(record: record)
                                 try modelContext.save()
                             }
 
-                            // Saved successfully: leave edit mode and dismiss sheet
                             isEditing = false
                             dismiss()
                         } catch {
-                            // Show a visible alert so the user knows saving failed
                             saveErrorMessage = "Save failed: \(error.localizedDescription)"
                         }
                     }
-                 } else {
-                     // Enter editing mode
-                     isEditing = true
-                 }
-             }
+                } else {
+                    isEditing = true
+                }
+            }
         }
     }
 }

@@ -6,69 +6,64 @@ struct RecordEditorSectionPetYearlyCosts: View {
     @Bindable var record: MedicalRecord
     let onChange: () -> Void
 
-    private var currentYear: Int {
-        Calendar.current.component(.year, from: Date())
+    @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+
+    private var availableYears: [Int] {
+        let current = Calendar.current.component(.year, from: Date())
+        let years = Set(record.petYearlyCosts.map { Calendar.current.component(.year, from: $0.date) } + [current])
+        return Array(years).sorted(by: >)
     }
 
-    private var sortedIndices: [Int] {
-        record.petYearlyCosts.indices.sorted { a, b in
-            let lhs = record.petYearlyCosts[a]
-            let rhs = record.petYearlyCosts[b]
-            if lhs.year != rhs.year { return lhs.year > rhs.year }
-            return lhs.date > rhs.date
-        }
+    private var filteredIndices: [Int] {
+        record.petYearlyCosts.indices
+            .filter { Calendar.current.component(.year, from: record.petYearlyCosts[$0].date) == selectedYear }
+            .sorted { a, b in record.petYearlyCosts[a].date > record.petYearlyCosts[b].date }
     }
 
-    private var currentYearTotal: Double {
+    private var selectedYearTotal: Double {
         record.petYearlyCosts
-            .filter { $0.year == currentYear }
+            .filter { Calendar.current.component(.year, from: $0.date) == selectedYear }
             .reduce(0) { $0 + $1.amount }
     }
 
     var body: some View {
         Section {
-            if record.petYearlyCosts.isEmpty {
-                Text("Add cost entries by date (e.g., Vet Check Up, 01.01.2026, 100). The app sums these for the year.")
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack {
-                    Text("Total \(currentYear)")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(currentYearTotal, format: .currency(code: Locale.current.currency?.identifier ?? "CHF"))
-                        .fontWeight(.semibold)
+            Picker("Year", selection: $selectedYear) {
+                ForEach(availableYears, id: \.self) { year in
+                    Text(String(year)).tag(year)
                 }
             }
 
-            ForEach(sortedIndices, id: \.self) { idx in
+            HStack {
+                Text("Total")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(selectedYearTotal, format: .currency(code: Locale.current.currency?.identifier ?? "CHF"))
+                    .fontWeight(.semibold)
+            }
+
+            if filteredIndices.isEmpty {
+                Text("No costs for \(selectedYear).")
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(filteredIndices, id: \.self) { idx in
+                TextField(
+                    "Title",
+                    text: Binding(
+                        get: { record.petYearlyCosts[idx].title },
+                        set: { record.petYearlyCosts[idx].title = $0; onChange() }
+                    )
+                )
+
                 DatePicker(
                     "Date",
                     selection: Binding(
                         get: { record.petYearlyCosts[idx].date },
                         set: { record.petYearlyCosts[idx].date = $0; onChange() }
                     ),
-                    displayedComponents: .date
+                    displayedComponents: [.date]
                 )
-
-                HStack {
-                    TextField(
-                        "Title",
-                        text: Binding(
-                            get: { record.petYearlyCosts[idx].title },
-                            set: { record.petYearlyCosts[idx].title = $0; onChange() }
-                        )
-                    )
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        let removed = record.petYearlyCosts.remove(at: idx)
-                        modelContext.delete(removed)
-                        onChange()
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                }
 
                 HStack {
                     Text("Amount")
@@ -96,18 +91,33 @@ struct RecordEditorSectionPetYearlyCosts: View {
                 )
                 .lineLimit(1...3)
 
-                if idx != sortedIndices.last {
+                HStack {
+                    Spacer()
+                    Button(role: .destructive) {
+                        let removed = record.petYearlyCosts.remove(at: idx)
+                        modelContext.delete(removed)
+                        onChange()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+
+                if idx != filteredIndices.last {
                     Divider()
                 }
             }
 
-            Button("Add Cost Entry") {
-                let entry = PetYearlyCostEntry(record: record)
+            Button("Add Cost") {
+                let entry = PetYearlyCostEntry(title: "", date: Date(), amount: 0, note: "")
                 record.petYearlyCosts.append(entry)
+                selectedYear = Calendar.current.component(.year, from: entry.date)
                 onChange()
             }
         } header: {
             Label("Costs", systemImage: "eurosign.circle")
+        }
+        .onAppear {
+            selectedYear = Calendar.current.component(.year, from: Date())
         }
     }
 }

@@ -3,50 +3,74 @@ import SwiftUI
 struct RecordViewerSectionPetYearlyCosts: View {
     let record: MedicalRecord
 
-    private var currentYear: Int {
-        Calendar.current.component(.year, from: Date())
+    @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+
+    private var yearPickerYears: [Int] {
+        let current = Calendar.current.component(.year, from: Date())
+        let years = Set(record.petYearlyCosts.map { Calendar.current.component(.year, from: $0.date) } + [current])
+        return Array(years).sorted(by: >)
     }
 
-    private var entriesForCurrentYear: [PetYearlyCostEntry] {
+    private var entriesForSelectedYear: [PetYearlyCostEntry] {
         record.petYearlyCosts
-            .filter { $0.year == currentYear }
+            .filter { Calendar.current.component(.year, from: $0.date) == selectedYear }
             .sorted { $0.date > $1.date }
     }
 
-    private var currentYearTotal: Double {
-        entriesForCurrentYear.reduce(0) { $0 + $1.amount }
+    private var selectedYearTotal: Double {
+        entriesForSelectedYear.reduce(0) { $0 + $1.amount }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Total \(currentYear)")
+                Text("Year")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(currentYearTotal, format: .currency(code: Locale.current.currency?.identifier ?? "CHF"))
+                Picker("Year", selection: $selectedYear) {
+                    ForEach(yearPickerYears, id: \.self) { year in
+                        Text(String(year)).tag(year)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+
+            HStack {
+                Text("Total")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(selectedYearTotal, format: .currency(code: Locale.current.currency?.identifier ?? "CHF"))
                     .fontWeight(.semibold)
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 14)
+            .padding(.horizontal)
+            .padding(.bottom, 10)
 
             Divider()
 
-            if entriesForCurrentYear.isEmpty {
-                RecordViewerRow(title: "Costs", value: "No entries for \(currentYear)")
+            if entriesForSelectedYear.isEmpty {
+                Text("No costs for \(selectedYear).")
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
             } else {
                 RecordViewerSectionEntries(
                     title: "Costs",
-                    columns: ["Date", "Title", "Amount", "Note"],
-                    rows: entriesForCurrentYear.map { entry in
+                    columns: ["Title", "Date", "Amount", "Note"],
+                    rows: entriesForSelectedYear.map { entry in
                         [
-                            entry.date.formatted(date: .abbreviated, time: .omitted),
                             entry.title,
+                            entry.date.formatted(date: .abbreviated, time: .omitted),
                             String(format: "%.2f", entry.amount),
                             entry.note
                         ]
                     }
                 )
             }
+        }
+        .onAppear {
+            selectedYear = Calendar.current.component(.year, from: Date())
         }
     }
 }

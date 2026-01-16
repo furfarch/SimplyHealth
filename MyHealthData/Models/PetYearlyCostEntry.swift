@@ -10,39 +10,35 @@ final class PetYearlyCostEntry {
     var uuid: String
     var id: String { uuid }
 
-    /// Date the expense occurred.
-    var date: Date
-
-    /// Short description, e.g. "Vet Check Up".
+    /// e.g. "Vet Check Up", "Food", "Insurance"
     var title: String
 
+    /// Date of the expense
+    var date: Date
+
+    /// Amount paid for this entry
     var amount: Double
+
     var note: String
 
-    /// Convenience for grouping by year in UI.
-    var year: Int {
-        Calendar.current.component(.year, from: date)
-    }
-
-    var record: MedicalRecord? = nil
+    // Intentionally no inverse relationship back to MedicalRecord.
+    // The owning relationship lives on MedicalRecord.petYearlyCosts with cascade delete.
 
     init(
         uuid: String = UUID().uuidString,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        date: Date = Date(),
         title: String = "",
+        date: Date = Date(),
         amount: Double = 0,
-        note: String = "",
-        record: MedicalRecord? = nil
+        note: String = ""
     ) {
         self.uuid = uuid
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-        self.date = date
         self.title = title
+        self.date = date
         self.amount = amount
         self.note = note
-        self.record = record
     }
 }

@@ -32,7 +32,7 @@ final class MedicalRecord {
     var ownerPhone: String
     var ownerEmail: String
 
-    // Pet veterinarian fields
+    // Pet vet details
     var vetClinicName: String
     var vetContactName: String
     var vetPhone: String
@@ -45,7 +45,7 @@ final class MedicalRecord {
     var emergencyNumber: String
     var emergencyEmail: String
 
-    // Relationships
+    // Relationships (existing ones)
     @Relationship(deleteRule: .cascade, inverse: \BloodEntry.record)
     var blood: [BloodEntry] = []
 
@@ -77,7 +77,7 @@ final class MedicalRecord {
     var emergencyContacts: [EmergencyContact] = []
 
     // Pet costs (date-based entries)
-    @Relationship(deleteRule: .cascade, inverse: \PetYearlyCostEntry.record)
+    @Relationship(deleteRule: .cascade)
     var petYearlyCosts: [PetYearlyCostEntry] = []
 
     // Human doctors (up to 5)
@@ -97,6 +97,7 @@ final class MedicalRecord {
     var isSharingEnabled: Bool = false
 
     /// Optional display string for participants (UI-only, best effort).
+    /// For now this may remain empty; we'll populate it later when we add participant fetching.
     var shareParticipantsSummary: String = ""
 
     enum RecordLocationStatus: Equatable {
@@ -141,6 +142,10 @@ final class MedicalRecord {
         return .local
     }
 
+    /// Display name for the record following the pattern: "Family Name - Given Name - Name"
+    /// For pets: uses personalName
+    /// For humans: displays all non-empty fields in order (family, given, name) separated by " - "
+    /// Examples: "Smith - John - Johnny", "Smith - John", "Johnny", "Person" (when all empty)
     var displayName: String {
         if isPet {
             let name = personalName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -149,12 +154,21 @@ final class MedicalRecord {
             let family = personalFamilyName.trimmingCharacters(in: .whitespacesAndNewlines)
             let given = personalGivenName.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = personalNickName.trimmingCharacters(in: .whitespacesAndNewlines)
-
+            
+            // Build the display name with " - " separator
             let parts = [family, given, name].filter { !$0.isEmpty }
-            return parts.isEmpty ? "Person" : parts.joined(separator: " - ")
+            
+            if parts.isEmpty {
+                return "Person"
+            }
+            
+            return parts.joined(separator: " - ")
         }
     }
-
+    
+    /// Sort key for ordering records
+    /// Humans first, then Pets, both alphabetically sorted by displayName
+    /// Uses "0-" prefix for humans and "1-" prefix for pets to ensure correct ordering
     var sortKey: String {
         let prefix = isPet ? "1-" : "0-"
         return prefix + displayName.lowercased()
@@ -180,15 +194,16 @@ final class MedicalRecord {
         ownerName: String = "",
         ownerPhone: String = "",
         ownerEmail: String = "",
+        emergencyName: String = "",
+        emergencyNumber: String = "",
+        emergencyEmail: String = "",
+        // Vet
         vetClinicName: String = "",
         vetContactName: String = "",
         vetPhone: String = "",
         vetEmail: String = "",
         vetAddress: String = "",
         vetNote: String = "",
-        emergencyName: String = "",
-        emergencyNumber: String = "",
-        emergencyEmail: String = "",
         blood: [BloodEntry] = [],
         drugs: [DrugEntry] = [],
         vaccinations: [VaccinationEntry] = [],
@@ -222,6 +237,7 @@ final class MedicalRecord {
         self.personalHealthInsuranceNumber = personalHealthInsuranceNumber
         self.personalEmployer = personalEmployer
 
+        // pet fields
         self.isPet = isPet
         self.personalName = personalName
         self.personalAnimalID = personalAnimalID
@@ -229,16 +245,17 @@ final class MedicalRecord {
         self.ownerPhone = ownerPhone
         self.ownerEmail = ownerEmail
 
+        self.emergencyName = emergencyName
+        self.emergencyNumber = emergencyNumber
+        self.emergencyEmail = emergencyEmail
+
+        // vet fields
         self.vetClinicName = vetClinicName
         self.vetContactName = vetContactName
         self.vetPhone = vetPhone
         self.vetEmail = vetEmail
         self.vetAddress = vetAddress
         self.vetNote = vetNote
-
-        self.emergencyName = emergencyName
-        self.emergencyNumber = emergencyNumber
-        self.emergencyEmail = emergencyEmail
 
         self.blood = blood
         self.drugs = drugs
@@ -264,8 +281,13 @@ final class MedicalRecord {
         vetContactName = contact.name
         vetPhone = contact.phone
         vetEmail = contact.email
+        // EmergencyContact doesn't currently have an address field.
         if !contact.note.isEmpty {
-            vetNote = contact.note
+            if vetNote.isEmpty {
+                vetNote = contact.note
+            } else {
+                vetNote = vetNote + "\n" + contact.note
+            }
         }
     }
 }
