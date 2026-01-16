@@ -85,7 +85,7 @@ struct RecordEditorView: View {
         GeometryReader { proxy in
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 0) {
-                    ForEach(RecordSection.sections(for: record)) { section in
+                    ForEach(RecordSection.allCases) { section in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 12) {
                                 RecordSectionHeaderView(section: section)
@@ -230,25 +230,8 @@ struct RecordEditorView: View {
                     ]
                 }
             )
-        case .vet:
-            RecordViewerSectionEntries(title: "Vet", columns: ["Info"], rows: [["(coming soon)"]])
-        case .doctors:
-            RecordViewerSectionEntries(title: "Doctors", columns: ["Info"], rows: [["(coming soon)"]])
-        case .petCosts:
-            RecordViewerSectionEntries(title: "Costs", columns: ["Info"], rows: [["(coming soon)"]])
-        case .details:
-            RecordViewerSectionEntries(
-                title: "Record Details",
-                columns: ["Field", "Value"],
-                rows: [
-                    ["Location", record.locationStatus.accessibilityLabel],
-                    ["Cloud enabled", record.isCloudEnabled ? "Yes" : "No"],
-                    ["Sharing enabled", record.isSharingEnabled ? "Yes" : "No"],
-                    ["Shared with", record.shareParticipantsSummary.isEmpty ? "—" : record.shareParticipantsSummary],
-                    ["Created", record.createdAt.formatted(date: .abbreviated, time: .shortened)],
-                    ["Updated", record.updatedAt.formatted(date: .abbreviated, time: .shortened)]
-                ]
-            )
+        default:
+            RecordViewerSectionEntries(title: section.title, columns: ["Info"], rows: [["(coming soon)"]])
         }
     }
 

@@ -89,6 +89,9 @@ struct CloudShareSheet: View {
                     switch result {
                     case .success:
                         self.errorMessage = nil
+                        Task { @MainActor in
+                            await CloudKitShareParticipantsService.shared.refreshParticipantsSummary(for: record)
+                        }
                     case .failure(let err):
                         self.errorMessage = err.localizedDescription
                     }

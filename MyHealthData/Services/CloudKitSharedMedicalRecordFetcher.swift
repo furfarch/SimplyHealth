@@ -52,8 +52,13 @@ final class CloudKitSharedMedicalRecordFetcher {
             return
         }
 
+        ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: importing shared records count=\(records.count)")
+
         for ckRecord in records {
-            guard let uuid = ckRecord["uuid"] as? String else { continue }
+            guard let uuid = ckRecord["uuid"] as? String else {
+                ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: skipping record without uuid id=\(ckRecord.recordID.recordName)")
+                continue
+            }
 
             let cloudUpdatedAt = (ckRecord["updatedAt"] as? Date) ?? Date.distantPast
 
@@ -97,15 +102,10 @@ final class CloudKitSharedMedicalRecordFetcher {
 
             // Mark as shared/imported
             record.isCloudEnabled = true
+            record.isSharingEnabled = true
             record.cloudRecordName = ckRecord.recordID.recordName
-
-            // Records coming from the shared DB are, by definition, shared.
             if let shareRef = ckRecord.share {
                 record.cloudShareRecordName = shareRef.recordID.recordName
-                record.isSharingEnabled = true
-            } else {
-                // Still treat it as shared even if we didn't get the reference for some reason.
-                record.isSharingEnabled = true
             }
 
             if existing == nil {
@@ -115,6 +115,7 @@ final class CloudKitSharedMedicalRecordFetcher {
 
         do {
             try context.save()
+            ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: saved imported shared records")
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedMedicalRecordFetcher: failed saving import: \(error)")
         }

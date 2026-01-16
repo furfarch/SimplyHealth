@@ -140,9 +140,22 @@ struct CloudRecordSettingsView: View {
             .disabled(!cloudEnabled || !record.isCloudEnabled)
 
             if record.isSharingEnabled {
-                Text(record.shareParticipantsSummary.isEmpty ? "Shared with: (not loaded yet)" : "Shared with: \(record.shareParticipantsSummary)")
+                HStack(spacing: 12) {
+                    Text(record.shareParticipantsSummary.isEmpty ? "Invites: (not loaded yet)" : "Invites: \(record.shareParticipantsSummary)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 8)
+
+                    Button("Reload") {
+                        Task { @MainActor in
+                            await CloudKitShareParticipantsService.shared.refreshParticipantsSummary(for: record)
+                            try? modelContext.save()
+                        }
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.bordered)
+                }
             }
 
             if !cloudEnabled {

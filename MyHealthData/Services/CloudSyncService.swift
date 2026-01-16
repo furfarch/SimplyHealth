@@ -17,23 +17,14 @@ final class CloudSyncService {
 
     private let containerIdentifier = "iCloud.com.furfarch.MyHealthData"
 
-    // Shares can't exist in the default zone. Use a dedicated private zone for shareable records.
-    private let shareZoneName = "MyHealthDataShareZone"
-    private var shareZoneID: CKRecordZone.ID {
-        CKRecordZone.ID(zoneName: shareZoneName, ownerName: CKCurrentUserDefaultName)
-    }
-    
+    // Sharing works best in the user's default private zone.
+    // Using a custom zone breaks CloudKit Sharing workflows.
+
     // Delay to allow server-side processing of share URL (in nanoseconds)
     private let shareURLPopulationDelay: UInt64 = 1_000_000_000 // 1 second
-    private let shareURLMaxRetries = 3 // Maximum number of refetch attempts
-    private let nanosecondsPerSecond: Double = 1_000_000_000 // For logging conversion
+    private let shareURLMaxRetries = 3
+    private let nanosecondsPerSecond: Double = 1_000_000_000
 
-    /// CloudKit record type used for MedicalRecord mirrors.
-    /// IMPORTANT:
-    /// - CloudKit schemas are environment-specific (Development vs Production).
-    /// - You can't create new record types in the Production schema from the client.
-    ///   If you see: "Cannot create new type … in production schema",
-    ///   create the record type in the CloudKit Dashboard (Development), then deploy to Production.
     private let medicalRecordType = "MedicalRecord"
 
     private var container: CKContainer { CKContainer(identifier: containerIdentifier) }
@@ -48,67 +39,16 @@ final class CloudSyncService {
     // MARK: - Zone
 
     private func ensureShareZoneExists() async throws {
-        do {
-            _ = try await database.recordZone(for: shareZoneID)
-        } catch {
-            if let ck = error as? CKError, ck.code == .zoneNotFound {
-                ShareDebugStore.shared.appendLog("ensureShareZoneExists: zone not found, creating zone=\(shareZoneName)")
-                let zone = CKRecordZone(zoneID: shareZoneID)
-                _ = try await database.modifyRecordZones(saving: [zone], deleting: [])
-                ShareDebugStore.shared.appendLog("ensureShareZoneExists: created zone=\(shareZoneName)")
-            } else {
-                ShareDebugStore.shared.appendLog("ensureShareZoneExists: failed: \(error)")
-                throw error
-            }
-        }
+        // No-op: we intentionally use the default zone.
     }
 
     private func zonedRecordID(for record: MedicalRecord) -> CKRecord.ID {
         let recordName = record.cloudRecordName ?? record.uuid
-        return CKRecord.ID(recordName: recordName, zoneID: shareZoneID)
+        return CKRecord.ID(recordName: recordName) // default zone
     }
 
     private func migrateRootRecordToShareZoneIfNeeded(record: MedicalRecord) async throws {
-        let zonedID = zonedRecordID(for: record)
-        do {
-            _ = try await database.record(for: zonedID)
-            return
-        } catch {
-            if let ck = error as? CKError, ck.code == .unknownItem {
-                let recordName = record.cloudRecordName ?? record.uuid
-                let defaultID = CKRecord.ID(recordName: recordName) // default zone
-
-                do {
-                    let legacy = try await database.record(for: defaultID)
-                    ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: found legacy default-zone record id=\(legacy.recordID.recordName); migrating to zone=\(shareZoneName)")
-
-                    let migrated = CKRecord(recordType: medicalRecordType, recordID: zonedID)
-                    for key in legacy.allKeys() {
-                        migrated[key] = legacy[key]
-                    }
-                    applyMedicalRecord(record, to: migrated)
-
-                    _ = try await database.save(migrated)
-                    ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: saved migrated record id=\(migrated.recordID.recordName) zone=\(shareZoneName)")
-
-                    do {
-                        _ = try await database.deleteRecord(withID: defaultID)
-                        ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: deleted legacy default-zone record id=\(defaultID.recordName)")
-                    } catch {
-                        ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: failed deleting legacy default-zone record id=\(defaultID.recordName): \(error)")
-                    }
-
-                    record.cloudRecordName = recordName
-                } catch {
-                    if let ck2 = error as? CKError, ck2.code == .unknownItem {
-                        return
-                    }
-                    throw error
-                }
-            } else {
-                throw error
-            }
-        }
+        // No-op now that we use default zone.
     }
 
     // MARK: - Sync
@@ -148,7 +88,7 @@ final class CloudSyncService {
 
             // Persist back CloudKit identity and mark success
             record.cloudRecordName = saved.recordID.recordName
-            ShareDebugStore.shared.appendLog("syncIfNeeded: saved id=\(saved.recordID.recordName) zone=\(shareZoneName) type=\(saved.recordType) for local uuid=\(record.uuid)")
+            ShareDebugStore.shared.appendLog("syncIfNeeded: saved id=\(saved.recordID.recordName) zone=default type=\(saved.recordType) for local uuid=\(record.uuid)")
         } catch {
             ShareDebugStore.shared.appendLog("syncIfNeeded: failed to save record=\(record.uuid) error=\(error)")
             throw enrichCloudKitError(error)
@@ -179,14 +119,12 @@ final class CloudSyncService {
     }
 
     private func revokeSharingAndDeleteFromCloud(record: MedicalRecord) async throws {
-        try await ensureShareZoneExists()
-
-        // 1) Delete existing share record (if we know it)
+        // 1) Delete existing share record (default zone)
         if let shareRecordName = record.cloudShareRecordName {
-            let shareID = CKRecord.ID(recordName: shareRecordName, zoneID: shareZoneID)
+            let shareID = CKRecord.ID(recordName: shareRecordName)
             do {
                 _ = try await database.deleteRecord(withID: shareID)
-                ShareDebugStore.shared.appendLog("revokeSharingAndDeleteFromCloud: deleted CKShare id=\(shareRecordName) zone=\(shareZoneName) for record=\(record.uuid)")
+                ShareDebugStore.shared.appendLog("revokeSharingAndDeleteFromCloud: deleted CKShare id=\(shareRecordName) zone=default for record=\(record.uuid)")
             } catch {
                 if let ck = error as? CKError, ck.code == .unknownItem {
                     ShareDebugStore.shared.appendLog("revokeSharingAndDeleteFromCloud: share already missing id=\(shareRecordName)")
@@ -197,11 +135,11 @@ final class CloudSyncService {
             record.cloudShareRecordName = nil
         }
 
-        // 2) Delete root record from share zone
+        // 2) Delete root record (default zone)
         let rootID = zonedRecordID(for: record)
         do {
             _ = try await database.deleteRecord(withID: rootID)
-            ShareDebugStore.shared.appendLog("revokeSharingAndDeleteFromCloud: deleted root record id=\(rootID.recordName) zone=\(shareZoneName) for record=\(record.uuid)")
+            ShareDebugStore.shared.appendLog("revokeSharingAndDeleteFromCloud: deleted root record id=\(rootID.recordName) zone=default for record=\(record.uuid)")
         } catch {
             if let ck = error as? CKError, ck.code == .unknownItem {
                 ShareDebugStore.shared.appendLog("revokeSharingAndDeleteFromCloud: root record already missing id=\(rootID.recordName)")
@@ -222,12 +160,12 @@ final class CloudSyncService {
 
         // Reuse existing share if we know its record name.
         if let shareRecordName = record.cloudShareRecordName {
-            let shareID = CKRecord.ID(recordName: shareRecordName, zoneID: shareZoneID)
+            let shareID = CKRecord.ID(recordName: shareRecordName)
             do {
                 let existingRecord = try await database.record(for: shareID)
                 if let existing = existingRecord as? CKShare {
                     ShareDebugStore.shared.lastShareURL = existing.url
-                    ShareDebugStore.shared.appendLog("createShare: reusing existing share id=\(existing.recordID.recordName) zone=\(shareZoneName) url=\(String(describing: existing.url))")
+                    ShareDebugStore.shared.appendLog("createShare: reusing existing share id=\(existing.recordID.recordName) zone=default url=\(String(describing: existing.url))")
                     return existing
                 }
             } catch {
@@ -268,7 +206,7 @@ final class CloudSyncService {
             // Use CKModifyRecordsOperation with .allKeys save policy
             // This ensures the root record is saved along with the share, even if the root hasn't changed
             // This is critical for establishing the share-root relationship in CloudKit
-            ShareDebugStore.shared.appendLog("createShare: saving root=\(root.recordID.recordName) and share=\(share.recordID.recordName) in zone=\(shareZoneName)")
+            ShareDebugStore.shared.appendLog("createShare: saving root=\(root.recordID.recordName) and share=\(share.recordID.recordName) in zone=default")
             
             let saveResults: [CKRecord.ID: CKRecord] = try await withCheckedThrowingContinuation { continuation in
                 let operation = CKModifyRecordsOperation(recordsToSave: [root, share], recordIDsToDelete: [])
@@ -434,17 +372,16 @@ final class CloudSyncService {
             throw err
         }
 
-        // Ensure zone + record exist in CloudKit
+        // Ensure record exists in CloudKit
         try await ensureShareZoneExists()
         try await syncIfNeeded(record: record)
 
-        // IMPORTANT: Fetch root from share zone (not default zone)
         let rootID = zonedRecordID(for: record)
 
         let root: CKRecord
         do {
             root = try await database.record(for: rootID)
-            ShareDebugStore.shared.appendLog("makeCloudSharingController: fetched root record id=\(root.recordID.recordName) zone=\(shareZoneName) for record=\(record.uuid)")
+            ShareDebugStore.shared.appendLog("makeCloudSharingController: fetched root record id=\(root.recordID.recordName) zone=default for record=\(record.uuid)")
         } catch {
             ShareDebugStore.shared.appendLog("makeCloudSharingController: failed fetching root record from share zone: \(error)")
             throw enrichCloudKitError(error)
@@ -461,7 +398,7 @@ final class CloudSyncService {
         let savedShare: CKShare
         do {
             savedShare = try await createShare(for: record)
-            ShareDebugStore.shared.appendLog("makeCloudSharingController: obtained CKShare id=\(savedShare.recordID.recordName) zone=\(shareZoneName)")
+            ShareDebugStore.shared.appendLog("makeCloudSharingController: obtained CKShare id=\(savedShare.recordID.recordName) zone=default")
         } catch {
             ShareDebugStore.shared.appendLog("makeCloudSharingController: failed to obtain share: \(error)")
             throw enrichCloudKitError(error)
@@ -488,44 +425,41 @@ final class CloudSyncService {
     func deleteSyncRecord(forLocalRecord record: MedicalRecord) async throws {
         try await ensureShareZoneExists()
 
-        // Best-effort: delete CKShare first (shares live in the share zone).
+        // Best-effort: delete CKShare first (default zone)
         if let shareRecordName = record.cloudShareRecordName {
-            let shareID = CKRecord.ID(recordName: shareRecordName, zoneID: shareZoneID)
+            let shareID = CKRecord.ID(recordName: shareRecordName)
             do {
                 _ = try await database.deleteRecord(withID: shareID)
-                ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CKShare id=\(shareRecordName) zone=\(shareZoneName) for local uuid=\(record.uuid)")
+                ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CKShare id=\(shareRecordName) zone=default for local uuid=\(record.uuid)")
             } catch {
                 if let ck = error as? CKError, ck.code == .unknownItem {
-                    ShareDebugStore.shared.appendLog("[CloudSyncService] CKShare already missing id=\(shareRecordName) zone=\(shareZoneName)")
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] CKShare already missing id=\(shareRecordName) zone=default")
                 } else {
-                    ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting CKShare id=\(shareRecordName) zone=\(shareZoneName): \(error)")
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting CKShare id=\(shareRecordName) zone=default: \(error)")
                     // don't block root deletion on share cleanup
                 }
             }
             record.cloudShareRecordName = nil
         }
 
-        // Root records live in the share zone.
+        // Root record (default zone)
         let ckID = zonedRecordID(for: record)
 
-        // First try to delete by record ID directly
         do {
             let deleted = try await database.deleteRecord(withID: ckID)
-            ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit root id=\(deleted.recordName) zone=\(shareZoneName) for local uuid=\(record.uuid)")
+            ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit root id=\(deleted.recordName) zone=default for local uuid=\(record.uuid)")
             return
         } catch {
-            ShareDebugStore.shared.appendLog("[CloudSyncService] Direct zoned delete failed id=\(ckID.recordName) zone=\(shareZoneName): \(error)")
-            // fall through to query-by-uuid in the same zone
+            ShareDebugStore.shared.appendLog("[CloudSyncService] Direct delete failed id=\(ckID.recordName) zone=default: \(error)")
         }
 
-        // Fallback: delete by matching uuid field (must query the same custom zone)
+        // Fallback: delete by uuid field in default database/zone.
         let predicate = NSPredicate(format: "uuid == %@", record.uuid)
         let query = CKQuery(recordType: medicalRecordType, predicate: predicate)
 
         let idsToDelete: [CKRecord.ID] = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[CKRecord.ID], Error>) in
             var foundIDs: [CKRecord.ID] = []
             let op = CKQueryOperation(query: query)
-            op.zoneID = shareZoneID
             op.recordMatchedBlock = { (_: CKRecord.ID, matchedResult: Result<CKRecord, Error>) in
                 switch matchedResult {
                 case .success(let rec): foundIDs.append(rec.recordID)
@@ -545,14 +479,14 @@ final class CloudSyncService {
             for id in idsToDelete {
                 do {
                     let deleted = try await database.deleteRecord(withID: id)
-                    ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit record id=\(deleted.recordName) via uuid match zone=\(shareZoneName) local uuid=\(record.uuid)")
+                    ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit record id=\(deleted.recordName) via uuid match zone=default local uuid=\(record.uuid)")
                 } catch {
                     ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting matched CloudKit record id=\(id.recordName): \(error)")
                     throw enrichCloudKitError(error)
                 }
             }
         } else {
-            ShareDebugStore.shared.appendLog("[CloudSyncService] No CloudKit record found for uuid=\(record.uuid) in zone=\(shareZoneName)")
+            ShareDebugStore.shared.appendLog("[CloudSyncService] No CloudKit record found for uuid=\(record.uuid) in zone=default")
         }
     }
 
@@ -598,19 +532,6 @@ final class CloudSyncService {
     private func enrichCloudKitError(_ error: Error) -> Error {
         // Try to map common CKError codes to friendlier messages
         if let ck = error as? CKError {
-            // Special-case: CloudKit Sharing not enabled/deployed in the current environment.
-            // This manifests as: "Cannot create new type cloudkit.share in production schema".
-            let message = ck.localizedDescription
-            if message.contains("cloudkit.share") && message.contains("production schema") {
-                return NSError(
-                    domain: "CloudSyncService",
-                    code: ck.code.rawValue,
-                    userInfo: [
-                        NSLocalizedDescriptionKey: "CloudKit Sharing is not enabled for the Production schema of container \(containerIdentifier). You must enable/deploy CloudKit Sharing for Production in the CloudKit Console (Development → Deploy to Production). This is a server-side configuration issue; the app cannot fix it."
-                    ]
-                )
-            }
-
             switch ck.code {
             case .notAuthenticated:
                 return NSError(domain: "CloudSyncService", code: ck.code.rawValue, userInfo: [NSLocalizedDescriptionKey: "Not signed in to iCloud. Please sign in and try again."])

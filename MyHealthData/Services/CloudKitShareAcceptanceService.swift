@@ -19,28 +19,17 @@ final class CloudKitShareAcceptanceService {
             let metadata = try await fetchShareMetadata(for: url)
             try await acceptShareMetadata(metadata)
 
-            let sharedDB = container.sharedCloudDatabase
-
-            // Fetch just the shared root record (so it appears immediately).
-            let rootID = Self.rootRecordID(from: metadata)
-            let recordsByID = try await fetchRecords(by: [rootID], from: sharedDB)
-
-            // Best-effort: also fetch the share record for participant display.
-            var fetchedShare: CKShare?
+            // Import from shared database so the record appears in SwiftData.
             do {
-                let shareByID = try await fetchRecords(by: [metadata.share.recordID], from: sharedDB)
-                fetchedShare = shareByID[metadata.share.recordID] as? CKShare
+                let sharedFetcher = CloudKitSharedMedicalRecordFetcher(containerIdentifier: containerIdentifier, modelContext: modelContext)
+                let count = try await sharedFetcher.fetchAllSharedAsync()
+                ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: shared fetch/import complete count=\(count)")
             } catch {
-                ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: unable to fetch CKShare for participants: \(error)")
+                ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: shared fetch/import failed error=\(error)")
+                throw error
             }
 
-            CloudKitSharedImporter.upsertSharedMedicalRecords(
-                recordsByID.values,
-                share: fetchedShare,
-                modelContext: modelContext
-            )
-
-            ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: import complete (count=\(recordsByID.count))")
+            ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: accept complete")
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: accept failed error=\(error)")
             ShareDebugStore.shared.lastError = error
