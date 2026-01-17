@@ -84,6 +84,18 @@ struct CloudRecordSettingsView: View {
                 set: { newValue in
                     if newValue {
                         record.isCloudEnabled = true
+
+                        // Immediately attempt to sync the record to CloudKit so enabling feels instantaneous.
+                        Task { @MainActor in
+                            do {
+                                try? modelContext.save()
+                                try await CloudSyncService.shared.syncIfNeeded(record: record)
+                                try? modelContext.save()
+                            } catch {
+                                // Surface a user-visible error message
+                                errorMessage = "Cloud sync failed: \(error.localizedDescription)"
+                            }
+                        }
                     } else {
                         // OFF means: remove this record from iCloud.
                         CloudSyncService.shared.disableCloud(for: record)

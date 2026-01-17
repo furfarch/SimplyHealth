@@ -57,7 +57,39 @@ struct MyHealthDataApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.modelContext, modelContainer.mainContext)
+                .task(id: UUID()) {
+                    // On launch, attempt a best-effort fetch of incremental changes and shared records.
+                    // Do not crash the app on CloudKit failures — just log them.
+                    cloudFetcher.fetchChanges()
+
+                    // Also fetch shared records across shared zones so accepted shares appear.
+                    Task {
+                        let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContainer.mainContext)
+                        do {
+                            _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
+                        } catch {
+                            ShareDebugStore.shared.appendLog("MyHealthDataApp: initial shared fetch failed: \(error)")
+                        }
+                    }
+                }
         }
         .modelContainer(modelContainer)
+        .onChange(of: scenePhase) { newPhase, _ in
+            if newPhase == .active {
+                // Reattach context (in case of container recreation in fallback) and trigger fetch
+                cloudFetcher.setModelContext(modelContainer.mainContext)
+                cloudFetcher.fetchChanges()
+
+                Task {
+                    let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContainer.mainContext)
+                    do {
+                        _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
+                    } catch {
+                        ShareDebugStore.shared.appendLog("MyHealthDataApp: active shared fetch failed: \(error)")
+                    }
+                }
+            }
+        }
     }
 }
