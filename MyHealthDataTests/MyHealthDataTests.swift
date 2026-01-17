@@ -110,6 +110,11 @@ struct MyHealthDataTests {
         r.cloudShareRecordName = "SOME-SHARE-RECORDNAME"
         #expect(r.locationStatus == .shared)
 
+        // Shared should win over all other flags.
+        r.isCloudEnabled = false
+        r.isSharingEnabled = true
+        #expect(r.locationStatus == .shared)
+
         r.isCloudEnabled = false
         #expect(r.locationStatus == .local)
     }

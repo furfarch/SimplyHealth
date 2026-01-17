@@ -131,12 +131,16 @@ final class MedicalRecord {
     /// Centralized rule for what the UI should show.
     /// Priority: Shared > iCloud > Local.
     var locationStatus: RecordLocationStatus {
+        // A shared record should always show as shared, even if the user turned off their
+        // own cloud syncing toggle. The share exists in the shared database regardless.
+        if cloudShareRecordName != nil || isSharingEnabled {
+            return .shared
+        }
+
         if isCloudEnabled {
-            if isSharingEnabled || cloudShareRecordName != nil {
-                return .shared
-            }
             return .iCloud
         }
+
         return .local
     }
 

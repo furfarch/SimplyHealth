@@ -51,7 +51,7 @@ struct ContactPickerButton: View {
     @State private var isPresenting = false
 
     var body: some View {
-        #if canImport(ContactsUI)
+        #if canImport(ContactsUI) && (os(iOS) || targetEnvironment(macCatalyst))
         Button(title) {
             isPresenting = true
         }
@@ -67,7 +67,7 @@ struct ContactPickerButton: View {
     }
 }
 
-#if canImport(ContactsUI)
+#if canImport(ContactsUI) && (os(iOS) || targetEnvironment(macCatalyst))
 import ContactsUI
 
 private struct ContactPickerSheet: UIViewControllerRepresentable {

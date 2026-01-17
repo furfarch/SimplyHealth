@@ -49,7 +49,9 @@ struct RecordEditorSectionWeight: View {
                             }
                         )
                     )
+                    #if os(iOS) || targetEnvironment(macCatalyst)
                     .keyboardType(.decimalPad)
+                    #endif
 
                     Spacer()
 

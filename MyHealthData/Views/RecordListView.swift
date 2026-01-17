@@ -202,8 +202,8 @@ struct RecordListView: View {
 
         // Also pull shared records (if any) so changes from others can appear.
         do {
-            let sharedFetcher = CloudKitSharedMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
-            _ = try await sharedFetcher.fetchAllSharedAsync()
+            let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
+            _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
         } catch {
             // Best-effort; don't fail refresh UI.
             ShareDebugStore.shared.appendLog("RecordListView: refresh shared fetch failed: \(error)")

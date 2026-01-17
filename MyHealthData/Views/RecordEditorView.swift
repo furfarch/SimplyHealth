@@ -32,7 +32,9 @@ struct RecordEditorView: View {
             }
         }
         .navigationTitle(record.displayName)
+        #if os(iOS) || targetEnvironment(macCatalyst)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(isEditing ? "Done" : "Edit") {
@@ -43,6 +45,8 @@ struct RecordEditorView: View {
                     }
                 }
             }
+
+            #if os(iOS) || targetEnvironment(macCatalyst)
             ToolbarItem(placement: .navigationBarLeading) {
                 if isEditing {
                     Button("Cloud & Sharing") {
@@ -50,6 +54,15 @@ struct RecordEditorView: View {
                     }
                 }
             }
+            #else
+            ToolbarItem(placement: .automatic) {
+                if isEditing {
+                    Button("Cloud & Sharing") {
+                        showCloudSettings = true
+                    }
+                }
+            }
+            #endif
         }
         .alert(
             "Save Error",
@@ -236,7 +249,9 @@ struct RecordEditorView: View {
                 }
             }
         }
+        #if os(iOS) || targetEnvironment(macCatalyst)
         .tabViewStyle(.page(indexDisplayMode: .automatic))
+        #endif
     }
 
     // MARK: - List viewer
