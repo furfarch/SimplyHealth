@@ -45,12 +45,18 @@ struct ContentView: View {
                 }
                 showShareAcceptedAlert = true
 
+                // Force model context to refresh
+                modelContext.processPendingChanges()
+
                 // Ensure shared-zone fetch runs and imports any related records
                 Task { @MainActor in
                     let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
                     do {
                         _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
                         ShareDebugStore.shared.appendLog("ContentView: triggered shared-zone fetch after accept")
+                        
+                        // Force refresh after fetch completes
+                        modelContext.processPendingChanges()
                     } catch {
                         ShareDebugStore.shared.appendLog("ContentView: shared-zone fetch after accept failed: \(error)")
                     }
@@ -63,6 +69,9 @@ struct ContentView: View {
                     do {
                         _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
                         ShareDebugStore.shared.appendLog("ContentView: triggered shared-zone fetch for DidChangeSharedRecords")
+                        
+                        // Force refresh after fetch completes
+                        modelContext.processPendingChanges()
                     } catch {
                         ShareDebugStore.shared.appendLog("ContentView: DidChangeSharedRecords fetch failed: \(error)")
                     }
