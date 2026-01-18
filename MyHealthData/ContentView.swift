@@ -36,7 +36,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("MyHealthData.DidAcceptShare"))) { notif in
+            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.didAcceptShare)) { notif in
                 // Show brief alert with the imported record name(s) and ensure shared-zone fetch ran
                 if let userInfo = notif.userInfo, let names = userInfo["names"] as? [String], let first = names.first {
                     importedName = first
@@ -45,24 +45,33 @@ struct ContentView: View {
                 }
                 showShareAcceptedAlert = true
 
+                // Force model context to refresh
+                modelContext.processPendingChanges()
+
                 // Ensure shared-zone fetch runs and imports any related records
                 Task { @MainActor in
                     let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
                     do {
                         _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
                         ShareDebugStore.shared.appendLog("ContentView: triggered shared-zone fetch after accept")
+                        
+                        // Force refresh after fetch completes
+                        modelContext.processPendingChanges()
                     } catch {
                         ShareDebugStore.shared.appendLog("ContentView: shared-zone fetch after accept failed: \(error)")
                     }
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("MyHealthData.DidChangeSharedRecords"))) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.didChangeSharedRecords)) { _ in
                 // Another component requested a UI refresh for shared records - perform a shared-zone fetch
                 Task { @MainActor in
                     let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
                     do {
                         _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
                         ShareDebugStore.shared.appendLog("ContentView: triggered shared-zone fetch for DidChangeSharedRecords")
+                        
+                        // Force refresh after fetch completes
+                        modelContext.processPendingChanges()
                     } catch {
                         ShareDebugStore.shared.appendLog("ContentView: DidChangeSharedRecords fetch failed: \(error)")
                     }

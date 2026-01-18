@@ -99,10 +99,17 @@ final class CloudKitSharedZoneMedicalRecordFetcher {
             let existing = (try? context.fetch(fetchDescriptor))?.first
 
             if let existing, existing.updatedAt > cloudUpdatedAt {
+                ShareDebugStore.shared.appendLog("CloudKitSharedZoneMedicalRecordFetcher: skipping stale cloud record uuid=\(uuid) (local=\(existing.updatedAt), cloud=\(cloudUpdatedAt))")
                 continue
             }
 
             let record = existing ?? MedicalRecord(uuid: uuid)
+            
+            if existing != nil {
+                ShareDebugStore.shared.appendLog("CloudKitSharedZoneMedicalRecordFetcher: updating existing record uuid=\(uuid)")
+            } else {
+                ShareDebugStore.shared.appendLog("CloudKitSharedZoneMedicalRecordFetcher: creating new record uuid=\(uuid)")
+            }
 
             record.createdAt = ckRecord["createdAt"] as? Date ?? record.createdAt
             record.updatedAt = cloudUpdatedAt
@@ -149,8 +156,17 @@ final class CloudKitSharedZoneMedicalRecordFetcher {
             }
         }
 
+        // Process pending changes before saving to ensure all modifications are tracked
+        context.processPendingChanges()
+
         do {
             try context.save()
+            ShareDebugStore.shared.appendLog("CloudKitSharedZoneMedicalRecordFetcher: successfully saved \(records.count) record(s)")
+            
+            // Post notification to trigger UI refresh (ensure on MainActor for thread safety)
+            Task { @MainActor in
+                NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
+            }
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedZoneMedicalRecordFetcher: failed saving import: \(error)")
         }

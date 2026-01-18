@@ -7,9 +7,6 @@ import SwiftData
 final class CloudKitShareAcceptanceService {
     static let shared = CloudKitShareAcceptanceService()
 
-    // Notification posted after successful accept/import (UI observes this)
-    static let didAcceptShareNotification = Notification.Name("MyHealthData.DidAcceptShare")
-
     private let containerIdentifier = "iCloud.com.furfarch.MyHealthData"
     private var container: CKContainer { CKContainer(identifier: containerIdentifier) }
 
@@ -56,7 +53,7 @@ final class CloudKitShareAcceptanceService {
             )
 
             // Post notification with imported names so UI can show a concise alert
-            NotificationCenter.default.post(name: Self.didAcceptShareNotification, object: nil, userInfo: ["names": displayNames])
+            NotificationCenter.default.post(name: NotificationNames.didAcceptShare, object: nil, userInfo: ["names": displayNames])
 
             ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: import complete (count=\(recordsByID.count))")
         } catch {
@@ -170,6 +167,12 @@ private enum CloudKitSharedImporter {
             let fetchDescriptor = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.uuid == uuid })
             let existing = (try? modelContext.fetch(fetchDescriptor))?.first
             let record = existing ?? MedicalRecord(uuid: uuid)
+            
+            if existing != nil {
+                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: updating existing record uuid=\(uuid)")
+            } else {
+                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: creating new record uuid=\(uuid)")
+            }
 
             record.createdAt = ckRecord["createdAt"] as? Date ?? record.createdAt
             record.updatedAt = (ckRecord["updatedAt"] as? Date) ?? record.updatedAt
@@ -220,8 +223,17 @@ private enum CloudKitSharedImporter {
             }
         }
 
+        // Process pending changes before saving to ensure all modifications are tracked
+        modelContext.processPendingChanges()
+
         do {
             try modelContext.save()
+            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: successfully saved \(ckRecords.count) record(s)")
+            
+            // Post notification to trigger UI refresh (ensure on MainActor for thread safety)
+            Task { @MainActor in
+                NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
+            }
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedImporter: failed saving import: \(error)")
         }

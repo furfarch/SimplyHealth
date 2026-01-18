@@ -101,6 +101,12 @@ struct MyHealthDataApp: App {
             let count = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
             if count > 0 {
                 ShareDebugStore.shared.appendLog("MyHealthDataApp: fetched \(count) shared records on activation")
+                
+                // Force the model context to process any pending changes and refresh
+                modelContainer.mainContext.processPendingChanges()
+                
+                // Post notification to ensure UI refreshes
+                NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
             }
         } catch {
             ShareDebugStore.shared.appendLog("MyHealthDataApp: shared fetch failed: \(error)")
