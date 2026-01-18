@@ -34,26 +34,11 @@ final class CloudKitShareAcceptanceService {
                 ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: unable to fetch CKShare for participants: \(error)")
             }
 
-            // Compute display names from CKRecords for UI notification and then import
-            let displayNames: [String] = recordsByID.values.compactMap { ckRecord in
-                if let name = ckRecord["personalName"] as? String, !name.isEmpty { return name }
-                let given = ckRecord["personalGivenName"] as? String ?? ""
-                let family = ckRecord["personalFamilyName"] as? String ?? ""
-                let combined = [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-                if !combined.isEmpty { return combined }
-                if let animal = ckRecord["personalAnimalID"] as? String, !animal.isEmpty { return animal }
-                if let uuid = ckRecord["uuid"] as? String { return uuid }
-                return nil
-            }
-
             CloudKitSharedImporter.upsertSharedMedicalRecords(
                 recordsByID.values,
                 share: fetchedShare,
                 modelContext: modelContext
             )
-
-            // Post notification with imported names so UI can show a concise alert
-            NotificationCenter.default.post(name: NotificationNames.didAcceptShare, object: nil, userInfo: ["names": displayNames])
 
             ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: import complete (count=\(recordsByID.count))")
         } catch {
@@ -79,6 +64,18 @@ final class CloudKitShareAcceptanceService {
     private func fetchShareMetadata(for url: URL) async throws -> CKShare.Metadata {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CKShare.Metadata, Error>) in
             let op = CKFetchShareMetadataOperation(shareURLs: [url])
+            op.qualityOfService = .userInitiated
+
+            var resumed = false
+            func resumeOnce(returning result: Result<CKShare.Metadata, Error>) {
+                guard !resumed else { return }
+                resumed = true
+                switch result {
+                case .success(let md): cont.resume(returning: md)
+                case .failure(let err): cont.resume(throwing: err)
+                }
+            }
+
             var captured: CKShare.Metadata?
 
             op.perShareMetadataResultBlock = { _, result in
@@ -86,7 +83,7 @@ final class CloudKitShareAcceptanceService {
                 case .success(let md):
                     captured = md
                 case .failure(let err):
-                    cont.resume(throwing: err)
+                    resumeOnce(returning: .failure(err))
                 }
             }
 
@@ -94,12 +91,12 @@ final class CloudKitShareAcceptanceService {
                 switch result {
                 case .success:
                     if let md = captured {
-                        cont.resume(returning: md)
+                        resumeOnce(returning: .success(md))
                     } else {
-                        cont.resume(throwing: NSError(domain: "CloudKitShareAcceptanceService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No share metadata returned."]))
+                        resumeOnce(returning: .failure(NSError(domain: "CloudKitShareAcceptanceService", code: 1, userInfo: [NSLocalizedDescriptionKey: "No share metadata returned."])))
                     }
                 case .failure(let err):
-                    cont.resume(throwing: err)
+                    resumeOnce(returning: .failure(err))
                 }
             }
 
@@ -111,6 +108,16 @@ final class CloudKitShareAcceptanceService {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             let op = CKAcceptSharesOperation(shareMetadatas: [metadata])
             op.qualityOfService = .userInitiated
+
+            var resumed = false
+            func resumeOnce(returning result: Result<Void, Error>) {
+                guard !resumed else { return }
+                resumed = true
+                switch result {
+                case .success: cont.resume(returning: ())
+                case .failure(let err): cont.resume(throwing: err)
+                }
+            }
 
             op.perShareResultBlock = { md, result in
                 switch result {
@@ -124,9 +131,9 @@ final class CloudKitShareAcceptanceService {
             op.acceptSharesResultBlock = { result in
                 switch result {
                 case .success:
-                    cont.resume(returning: ())
+                    resumeOnce(returning: .success(()))
                 case .failure(let err):
-                    cont.resume(throwing: err)
+                    resumeOnce(returning: .failure(err))
                 }
             }
 
@@ -137,18 +144,34 @@ final class CloudKitShareAcceptanceService {
     private func fetchRecords(by ids: [CKRecord.ID], from database: CKDatabase) async throws -> [CKRecord.ID: CKRecord] {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[CKRecord.ID: CKRecord], Error>) in
             let op = CKFetchRecordsOperation(recordIDs: ids)
+            op.qualityOfService = .userInitiated
+
+            var resumed = false
+            func resumeOnce(returning result: Result<[CKRecord.ID: CKRecord], Error>) {
+                guard !resumed else { return }
+                resumed = true
+                switch result {
+                case .success(let dict): cont.resume(returning: dict)
+                case .failure(let err): cont.resume(throwing: err)
+                }
+            }
+
             var fetched: [CKRecord.ID: CKRecord] = [:]
 
             op.perRecordResultBlock = { recordID, result in
-                if case .success(let rec) = result { fetched[recordID] = rec }
+                switch result {
+                case .success(let rec): fetched[recordID] = rec
+                case .failure(let err):
+                    ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: perRecord error id=\(recordID): \(err)")
+                }
             }
 
             op.fetchRecordsResultBlock = { result in
                 switch result {
                 case .success:
-                    cont.resume(returning: fetched)
+                    resumeOnce(returning: .success(fetched))
                 case .failure(let err):
-                    cont.resume(throwing: err)
+                    resumeOnce(returning: .failure(err))
                 }
             }
 
@@ -167,26 +190,22 @@ private enum CloudKitSharedImporter {
             let fetchDescriptor = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.uuid == uuid })
             let existing = (try? modelContext.fetch(fetchDescriptor))?.first
             let record = existing ?? MedicalRecord(uuid: uuid)
-            
-            if existing != nil {
-                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: updating existing record uuid=\(uuid)")
-            } else {
-                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: creating new record uuid=\(uuid)")
-            }
 
-            record.createdAt = ckRecord["createdAt"] as? Date ?? record.createdAt
-            record.updatedAt = (ckRecord["updatedAt"] as? Date) ?? record.updatedAt
+            // Only overwrite values when the CKRecord provides them. This preserves
+            // any local data that might already exist on the device.
+            if let createdAt = ckRecord["createdAt"] as? Date { record.createdAt = createdAt }
+            if let updatedAt = ckRecord["updatedAt"] as? Date { record.updatedAt = updatedAt }
 
-            record.personalFamilyName = ckRecord["personalFamilyName"] as? String ?? ""
-            record.personalGivenName = ckRecord["personalGivenName"] as? String ?? ""
-            record.personalNickName = ckRecord["personalNickName"] as? String ?? ""
-            record.personalGender = ckRecord["personalGender"] as? String ?? ""
-            record.personalBirthdate = ckRecord["personalBirthdate"] as? Date
-            record.personalSocialSecurityNumber = ckRecord["personalSocialSecurityNumber"] as? String ?? ""
-            record.personalAddress = ckRecord["personalAddress"] as? String ?? ""
-            record.personalHealthInsurance = ckRecord["personalHealthInsurance"] as? String ?? ""
-            record.personalHealthInsuranceNumber = ckRecord["personalHealthInsuranceNumber"] as? String ?? ""
-            record.personalEmployer = ckRecord["personalEmployer"] as? String ?? ""
+            if let v = ckRecord["personalFamilyName"] as? String { record.personalFamilyName = v }
+            if let v = ckRecord["personalGivenName"] as? String { record.personalGivenName = v }
+            if let v = ckRecord["personalNickName"] as? String { record.personalNickName = v }
+            if let v = ckRecord["personalGender"] as? String { record.personalGender = v }
+            if let d = ckRecord["personalBirthdate"] as? Date { record.personalBirthdate = d }
+            if let v = ckRecord["personalSocialSecurityNumber"] as? String { record.personalSocialSecurityNumber = v }
+            if let v = ckRecord["personalAddress"] as? String { record.personalAddress = v }
+            if let v = ckRecord["personalHealthInsurance"] as? String { record.personalHealthInsurance = v }
+            if let v = ckRecord["personalHealthInsuranceNumber"] as? String { record.personalHealthInsuranceNumber = v }
+            if let v = ckRecord["personalEmployer"] as? String { record.personalEmployer = v }
 
             if let boolVal = ckRecord["isPet"] as? Bool {
                 record.isPet = boolVal
@@ -194,24 +213,24 @@ private enum CloudKitSharedImporter {
                 record.isPet = num.boolValue
             }
 
-            record.personalName = ckRecord["personalName"] as? String ?? ""
-            record.personalAnimalID = ckRecord["personalAnimalID"] as? String ?? ""
-            record.ownerName = ckRecord["ownerName"] as? String ?? ""
-            record.ownerPhone = ckRecord["ownerPhone"] as? String ?? ""
-            record.ownerEmail = ckRecord["ownerEmail"] as? String ?? ""
-            record.emergencyName = ckRecord["emergencyName"] as? String ?? ""
-            record.emergencyNumber = ckRecord["emergencyNumber"] as? String ?? ""
-            record.emergencyEmail = ckRecord["emergencyEmail"] as? String ?? ""
+            if let v = ckRecord["personalName"] as? String { record.personalName = v }
+            if let v = ckRecord["personalAnimalID"] as? String { record.personalAnimalID = v }
+            if let v = ckRecord["ownerName"] as? String { record.ownerName = v }
+            if let v = ckRecord["ownerPhone"] as? String { record.ownerPhone = v }
+            if let v = ckRecord["ownerEmail"] as? String { record.ownerEmail = v }
+            if let v = ckRecord["emergencyName"] as? String { record.emergencyName = v }
+            if let v = ckRecord["emergencyNumber"] as? String { record.emergencyNumber = v }
+            if let v = ckRecord["emergencyEmail"] as? String { record.emergencyEmail = v }
 
-            let cloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
-            record.isCloudEnabled = cloudEnabled
+            // For imported shared records, consider them cloud-enabled.
+            record.isCloudEnabled = true
             record.isSharingEnabled = true
             record.cloudRecordName = ckRecord.recordID.recordName
 
             if let shareRef = ckRecord.share {
                 record.cloudShareRecordName = shareRef.recordID.recordName
             } else {
-                record.cloudShareRecordName = share?.recordID.recordName
+                if let share { record.cloudShareRecordName = share.recordID.recordName }
             }
 
             if let share {
@@ -220,20 +239,15 @@ private enum CloudKitSharedImporter {
 
             if existing == nil {
                 modelContext.insert(record)
+                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: inserted shared record \(uuid)")
+            } else {
+                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: updated shared record \(uuid)")
             }
         }
 
-        // Process pending changes before saving to ensure all modifications are tracked
-        modelContext.processPendingChanges()
-
         do {
+            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: saving imported records")
             try modelContext.save()
-            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: successfully saved \(ckRecords.count) record(s)")
-            
-            // Post notification to trigger UI refresh (ensure on MainActor for thread safety)
-            Task { @MainActor in
-                NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
-            }
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedImporter: failed saving import: \(error)")
         }
