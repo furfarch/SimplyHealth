@@ -15,7 +15,6 @@ struct ContentView: View {
     // Show alert when a share is accepted and imported
     @State private var showShareAcceptedAlert: Bool = false
     @State private var importedName: String = ""
-    @State private var hasCheckedPendingURL: Bool = false
 
     var body: some View {
         RecordListView()

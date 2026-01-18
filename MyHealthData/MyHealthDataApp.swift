@@ -76,8 +76,8 @@ struct MyHealthDataApp: App {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             // Fetch cloud changes when app becomes active to ensure we get updates
             if newPhase == .active {
-                cloudFetcher.fetchChanges()
                 Task { @MainActor in
+                    cloudFetcher.fetchChanges()
                     await fetchSharedRecords()
                 }
             }
