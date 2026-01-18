@@ -230,8 +230,10 @@ private enum CloudKitSharedImporter {
             try modelContext.save()
             ShareDebugStore.shared.appendLog("CloudKitSharedImporter: successfully saved \(ckRecords.count) record(s)")
             
-            // Post notification to trigger UI refresh (already on MainActor)
-            NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
+            // Post notification to trigger UI refresh (ensure on MainActor for thread safety)
+            Task { @MainActor in
+                NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
+            }
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedImporter: failed saving import: \(error)")
         }
