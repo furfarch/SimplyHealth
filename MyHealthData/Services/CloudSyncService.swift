@@ -39,16 +39,6 @@ final class CloudSyncService {
     private var container: CKContainer { CKContainer(identifier: containerIdentifier) }
     private var database: CKDatabase { container.privateCloudDatabase }
 
-    // Helper to pick the appropriate database for a record:
-    // - Shared records (have cloudShareRecordName or are sharing-enabled) should be written to the sharedCloudDatabase
-    // - Otherwise write to the user's privateCloudDatabase
-    private func database(for record: MedicalRecord) -> CKDatabase {
-        if record.isSharingEnabled || record.cloudShareRecordName != nil {
-            return container.sharedCloudDatabase
-        }
-        return container.privateCloudDatabase
-    }
-
     private init() {}
 
     func accountStatus() async throws -> CKAccountStatus {
@@ -58,21 +48,16 @@ final class CloudSyncService {
     // MARK: - Zone
 
     private func ensureShareZoneExists() async throws {
-        try await ensureShareZoneExists(in: database)
-    }
-
-    // DB-scoped helper so callers can ensure a share zone exists in the desired database (private/shared)
-    private func ensureShareZoneExists(in db: CKDatabase) async throws {
         do {
-            _ = try await db.recordZone(for: shareZoneID)
+            _ = try await database.recordZone(for: shareZoneID)
         } catch {
             if let ck = error as? CKError, ck.code == .zoneNotFound {
-                ShareDebugStore.shared.appendLog("ensureShareZoneExists(in:): zone not found in DB, creating zone=\(shareZoneName)")
+                ShareDebugStore.shared.appendLog("ensureShareZoneExists: zone not found, creating zone=\(shareZoneName)")
                 let zone = CKRecordZone(zoneID: shareZoneID)
-                _ = try await db.modifyRecordZones(saving: [zone], deleting: [])
-                ShareDebugStore.shared.appendLog("ensureShareZoneExists(in:): created zone=\(shareZoneName)")
+                _ = try await database.modifyRecordZones(saving: [zone], deleting: [])
+                ShareDebugStore.shared.appendLog("ensureShareZoneExists: created zone=\(shareZoneName)")
             } else {
-                ShareDebugStore.shared.appendLog("ensureShareZoneExists(in:): failed: \(error)")
+                ShareDebugStore.shared.appendLog("ensureShareZoneExists: failed: \(error)")
                 throw error
             }
         }
@@ -84,15 +69,9 @@ final class CloudSyncService {
     }
 
     private func migrateRootRecordToShareZoneIfNeeded(record: MedicalRecord) async throws {
-        try await migrateRootRecordToShareZoneIfNeeded(record: record, in: database)
-    }
-
-    // DB-scoped migration helper. For shared records, operations happen against the shared DB so participants can access
-    // and update the shared root record. For normal records, operate in the private DB.
-    private func migrateRootRecordToShareZoneIfNeeded(record: MedicalRecord, in db: CKDatabase) async throws {
         let zonedID = zonedRecordID(for: record)
         do {
-            _ = try await db.record(for: zonedID)
+            _ = try await database.record(for: zonedID)
             return
         } catch {
             if let ck = error as? CKError, ck.code == .unknownItem {
@@ -100,9 +79,8 @@ final class CloudSyncService {
                 let defaultID = CKRecord.ID(recordName: recordName) // default zone
 
                 do {
-                    // Try to fetch from the same DB's default zone first
-                    let legacy = try await db.record(for: defaultID)
-                    ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded(in:): found legacy default-zone record id=\(legacy.recordID.recordName); migrating to zone=\(shareZoneName)")
+                    let legacy = try await database.record(for: defaultID)
+                    ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: found legacy default-zone record id=\(legacy.recordID.recordName); migrating to zone=\(shareZoneName)")
 
                     let migrated = CKRecord(recordType: medicalRecordType, recordID: zonedID)
                     for key in legacy.allKeys() {
@@ -110,14 +88,14 @@ final class CloudSyncService {
                     }
                     applyMedicalRecord(record, to: migrated)
 
-                    _ = try await db.save(migrated)
-                    ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded(in:): saved migrated record id=\(migrated.recordID.recordName) zone=\(shareZoneName)")
+                    _ = try await database.save(migrated)
+                    ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: saved migrated record id=\(migrated.recordID.recordName) zone=\(shareZoneName)")
 
                     do {
-                        _ = try await db.deleteRecord(withID: defaultID)
-                        ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded(in:): deleted legacy default-zone record id=\(defaultID.recordName)")
+                        _ = try await database.deleteRecord(withID: defaultID)
+                        ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: deleted legacy default-zone record id=\(defaultID.recordName)")
                     } catch {
-                        ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded(in:): failed deleting legacy default-zone record id=\(defaultID.recordName): \(error)")
+                        ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: failed deleting legacy default-zone record id=\(defaultID.recordName): \(error)")
                     }
 
                     record.cloudRecordName = recordName
@@ -646,18 +624,15 @@ class CloudSharingDelegate: NSObject, UICloudSharingControllerDelegate {
 
     func cloudSharingController(_ c: UICloudSharingController, failedToSaveShareWithError error: Error) {
         ShareDebugStore.shared.appendLog("CloudSharingDelegate: failedToSaveShareWithError: \(error)")
-        print("CloudKit sharing failed: \(error)")
         onComplete?(.failure(error))
     }
     func cloudSharingControllerDidSaveShare(_ c: UICloudSharingController) {
         let url = c.share?.url
         ShareDebugStore.shared.appendLog("CloudSharingDelegate: didSaveShare url=\(String(describing: url))")
-        print("CloudKit share saved: \(String(describing: url))")
         onComplete?(.success(url))
     }
     func cloudSharingControllerDidStopSharing(_ c: UICloudSharingController) {
         ShareDebugStore.shared.appendLog("CloudSharingDelegate: didStopSharing")
-        print("CloudKit sharing stopped")
         onComplete?(.success(nil))
     }
     func itemTitle(for c: UICloudSharingController) -> String? { "Shared Medical Record" }

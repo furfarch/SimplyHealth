@@ -44,7 +44,7 @@ struct MyHealthDataApp: App {
         do {
             self.modelContainer = try ModelContainer(for: schema, configurations: [localConfig])
         } catch {
-            print("[MyHealthDataApp] Failed to create persistent ModelContainer: \(error)")
+            // Failed to create persistent ModelContainer — falling back to in-memory container for safety in older/unsupported environments.
             let memoryConfig = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: true,
@@ -64,13 +64,6 @@ struct MyHealthDataApp: App {
                 .task {
                     // Best-effort: trigger import of any pending cloud/shared changes on launch
                     cloudFetcher.fetchChanges()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: NotificationNames.pendingShareReceived)) { _ in
-                    if let url = PendingShareStore.shared.consume() {
-                        Task { @MainActor in
-                            await CloudKitShareAcceptanceService.shared.acceptShare(from: url, modelContext: modelContainer.mainContext)
-                        }
-                    }
                 }
         }
         .modelContainer(modelContainer)

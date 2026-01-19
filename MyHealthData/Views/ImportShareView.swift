@@ -19,7 +19,9 @@ struct ImportShareView: View {
                 TextField("Share URL", text: $urlString)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .disableAutocorrection(true)
+                    #if canImport(UIKit)
                     .autocapitalization(.none)
+                    #endif
 
                 if let status = statusMessage {
                     Text(status)

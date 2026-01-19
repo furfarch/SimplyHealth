@@ -14,7 +14,6 @@ final class CloudKitShareAcceptanceService {
 
     func acceptShare(from url: URL, modelContext: ModelContext) async {
         ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: acceptShare url=\(url.absoluteString)")
-        print("[CloudKitShareAcceptanceService] acceptShare called with url=\(url.absoluteString)")
 
         do {
             let metadata = try await fetchShareMetadata(for: url)
@@ -200,21 +199,13 @@ private enum CloudKitSharedImporter {
 
             if existing == nil {
                 modelContext.insert(record)
-                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: inserted shared record \(uuid)")
-                print("[CloudKitSharedImporter] inserted shared record \(uuid)")
-            } else {
-                ShareDebugStore.shared.appendLog("CloudKitSharedImporter: updated shared record \(uuid)")
-                print("[CloudKitSharedImporter] updated shared record \(uuid)")
             }
         }
 
         do {
             try modelContext.save()
-            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: saving imported records")
-            print("[CloudKitSharedImporter] saving imported records")
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedImporter: failed saving import: \(error)")
-            print("[CloudKitSharedImporter] failed saving import: \(error)")
         }
     }
 

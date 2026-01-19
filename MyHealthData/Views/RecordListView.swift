@@ -15,27 +15,14 @@ struct RecordListView: View {
     @State private var showAbout: Bool = false
     @State private var showSettings: Bool = false
     @State private var saveErrorMessage: String?
-    @State private var refreshID = UUID()
 
     var body: some View {
         NavigationStack {
             List {
                 listContent
             }
-            .id(refreshID)
             .refreshable {
                 await refreshFromCloud()
-            }
-            .onAppear {
-                ShareDebugStore.shared.appendLog("RecordListView: @Query found \(allRecords.count) record(s)")
-            }
-            .onChange(of: allRecords.count) { oldCount, newCount in
-                ShareDebugStore.shared.appendLog("RecordListView: record count changed from \(oldCount) to \(newCount)")
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.didImportRecords)) { _ in
-                // Force a refresh when records are imported from CloudKit
-                ShareDebugStore.shared.appendLog("RecordListView: received DidImportRecords notification, refreshing UI (current count: \(allRecords.count))")
-                refreshID = UUID()
             }
             .navigationTitle("MyHealthData")
             .toolbar {
@@ -142,9 +129,9 @@ struct RecordListView: View {
             catch { saveErrorMessage = "Save failed: \(error.localizedDescription)" }
         }
 
-        activeRecord = record
+        // Ensure the `startEditing` state is set before presenting the sheet so the editor opens in edit mode.
         startEditing = true
-        showEditor = true
+        activeRecord = record
     }
 
     private func deleteRecords(at offsets: IndexSet) {
@@ -215,8 +202,8 @@ struct RecordListView: View {
 
         // Also pull shared records (if any) so changes from others can appear.
         do {
-            let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
-            _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
+            let sharedFetcher = CloudKitSharedMedicalRecordFetcher(containerIdentifier: "iCloud.com.furfarch.MyHealthData", modelContext: modelContext)
+            _ = try await sharedFetcher.fetchAllSharedAsync()
         } catch {
             // Best-effort; don't fail refresh UI.
             ShareDebugStore.shared.appendLog("RecordListView: refresh shared fetch failed: \(error)")

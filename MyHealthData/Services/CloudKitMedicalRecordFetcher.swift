@@ -296,22 +296,9 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
             record.emergencyEmail = ckRecord["emergencyEmail"] as? String ?? ""
 
             // Respect global iCloud toggle. Importing should not auto-enable cloud for the user.
-            // If this import is from the share zone, treat it as a shared record and mark it enabled for cloud and sharing
-            let isFromShareZone = (ckRecord.recordID.zoneID == self.shareZoneID)
-            if isFromShareZone {
-                record.isCloudEnabled = true
-                record.isSharingEnabled = true
-            } else {
-                let cloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
-                record.isCloudEnabled = cloudEnabled
-            }
+            let cloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
+            record.isCloudEnabled = cloudEnabled
             record.cloudRecordName = ckRecord.recordID.recordName
-
-            if let shareRef = ckRecord.share {
-                record.cloudShareRecordName = shareRef.recordID.recordName
-            }
-
-            ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: importing record uuid=\(uuid) recordName=\(ckRecord.recordID.recordName) fromShareZone=\(isFromShareZone)")
 
             if existing == nil {
                 context.insert(record)
@@ -321,7 +308,7 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
         do {
             try context.save()
         } catch {
-            print("Failed to save CloudKit import: \(error)")
+            ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: failed saving import: \(error)")
         }
     }
 
