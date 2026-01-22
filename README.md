@@ -59,7 +59,7 @@ Simply Health helps you keep track of your medical information and that of your 
 
 2. Open the project in Xcode:
    ```bash
-   open MyHealthData.xcodeproj
+   open SimplyHealth.xcodeproj
    ```
 
 3. Select your target device (iOS Simulator, iPad Simulator, or My Mac)
@@ -71,14 +71,14 @@ Simply Health helps you keep track of your medical information and that of your 
 Tests use the Swift Testing framework. To run tests:
 
 1. In Xcode, open the Test Navigator (⌘6)
-2. Click the play button next to "MyHealthDataTests"
+2. Click the play button next to "SimplyHealthTests"
 3. Or use the keyboard shortcut (⌘U)
 
 ## Project Structure
 
 ```
-MyHealthData/
-├── MyHealthData/
+SimplyHealth/
+├── SimplyHealth/
 │   ├── Models/              # SwiftData model definitions
 │   ├── Views/               # SwiftUI views
 │   │   ├── RecordEditor/    # Record editing views
@@ -86,8 +86,8 @@ MyHealthData/
 │   ├── Services/            # Business logic and services
 │   ├── AppConfig.swift      # Centralized configuration
 │   └── Assets.xcassets      # Asset catalog
-├── MyHealthDataTests/       # Unit tests
-└── MyHealthDataUITests/     # UI tests
+├── SimplyHealthTests/       # Unit tests
+└── SimplyHealthUITests/     # UI tests
 ```
 
 ## CloudKit Integration
