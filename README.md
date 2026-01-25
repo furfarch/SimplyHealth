@@ -1,4 +1,4 @@
-# Simply Health
+# Purus Health
 
 **Part of the Simply Series** - Minimalist apps focused on one tracking task at a time.
 
@@ -6,7 +6,7 @@ A SwiftUI-based iOS and macOS application for managing personal medical records 
 
 ## Overview
 
-Simply Health helps you keep track of your medical information and that of your pets in one secure, private application. All data is stored locally on your device using SwiftData, with optional CloudKit synchronization for backup and sharing across devices.
+Purus Health helps you keep track of your medical information and that of your pets in one secure, private application. All data is stored locally on your device using SwiftData, with optional CloudKit synchronization for backup and sharing across devices.
 
 ## Features
 
@@ -94,7 +94,7 @@ SimplyHealth/
 
 CloudKit features are opt-in per record:
 
-- **Container ID**: `iCloud.com.furfarch.SimplyHealth`
+- **Container ID**: `icloud.com.purus.health`
 - **Features**:
   - Private database for personal records
   - Shared database for records shared with others
@@ -130,10 +130,10 @@ To enable CloudKit for a record:
 
 ## Simply Series Apps
 
-Simply Health is part of a family of minimalist tracking apps:
+Purus Health is part of a family of minimalist tracking apps:
 
 - **Simply Drive** - Vehicle tracking, drive logs, and maintenance checklists
-- **Simply Health** - Medical records and health tracking for humans and pets
+- **Purus Health** - Medical records and health tracking for humans and pets
 - **Simply Train** - Workout and training tracker (coming soon)
 
 Each app in the Simply Series follows the same design principles:

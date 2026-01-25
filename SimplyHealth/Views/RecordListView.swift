@@ -24,7 +24,7 @@ struct RecordListView: View {
             .refreshable {
                 await refreshFromCloud()
             }
-            .navigationTitle("MyHealthData")
+            .navigationTitle("Purus Health")
             .toolbar {
                 #if os(iOS) || targetEnvironment(macCatalyst)
                 ToolbarItem(placement: .navigationBarLeading) {

@@ -1,8 +1,8 @@
-# MyHealthData - Copilot Instructions
+# Purus Health - Copilot Instructions
 
 ## Project Overview
 
-MyHealthData is a SwiftUI-based iOS/macOS application for managing personal medical records. The app uses SwiftData for local persistence and CloudKit for cloud synchronization and sharing capabilities.
+Purus Health is a SwiftUI-based iOS/macOS application for managing personal medical records. The app uses SwiftData for local persistence and CloudKit for cloud synchronization and sharing capabilities.
 
 ## Technology Stack
 
@@ -62,15 +62,15 @@ MyHealthData is a SwiftUI-based iOS/macOS application for managing personal medi
 ### Error Handling
 
 - Use Swift's `do-catch` blocks for error-prone operations
-- Provide fallback behavior when operations fail (see `MyHealthDataApp.init()` for example)
-- Log errors with descriptive messages using print statements with component prefix (e.g., `[MyHealthDataApp]`)
+- Provide fallback behavior when operations fail (see `SimplyHealthApp.init()` for example)
+- Log errors with descriptive messages using print statements with component prefix (e.g., `[PurusHealthApp]`)
 
 ## Testing Guidelines
 
 ### Test Framework
 
 - Use Swift Testing framework with `@Test` macro (not XCTest)
-- Import the module under test with `@testable import MyHealthData`
+- Import the module under test with `@testable import SimplyHealth`
 - Use `#expect()` assertions instead of XCTAssert
 - Mark async tests with `async throws`
 - Use `@MainActor` for tests that interact with SwiftData contexts
@@ -93,7 +93,7 @@ MyHealthData is a SwiftUI-based iOS/macOS application for managing personal medi
 ## File Organization
 
 ```
-MyHealthData/
+SimplyHealth/
 ├── Models/           # SwiftData model definitions
 ├── Views/            # SwiftUI views
 │   └── RecordEditor/ # Sub-views for editing
@@ -112,13 +112,13 @@ MyHealthData/
 
 ### Running Tests
 
-- Tests are located in `MyHealthDataTests/`
+- Tests are located in `SimplyHealthTests/`
 - Use Swift Testing framework
 - Run tests through Xcode Test Navigator or using `xcodebuild test`
 
 ## Cloud and Sharing Features
 
-- CloudKit container identifier: `iCloud.com.furfarch.MyHealthData`
+- CloudKit container identifier: `icloud.com.purus.health`
 - Sharing is per-record, not app-wide
 - Use `CloudSyncService` for cloud operations
 - Track record location status: `.local`, `.iCloud`, or `.shared`
