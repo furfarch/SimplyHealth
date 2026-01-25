@@ -1,8 +1,8 @@
-# MyHealthData - Recommended Improvements
+# Purus Health - Recommended Improvements
 
 ## Executive Summary
 
-MyHealthData is a **well-architected, production-ready medical records management application** with excellent foundations in SwiftUI and SwiftData. The app is already in a released state with solid security leveraging iOS's built-in protections.
+Purus Health is a **well-architected, production-ready medical records management application** with excellent foundations in SwiftUI and SwiftData. The app is already in a released state with solid security leveraging iOS's built-in protections.
 
 The recommendations below focus on **optional enhancements** that could improve maintainability, testing, and user experience—not critical fixes. The app is already secure and functional as-is.
 
@@ -77,7 +77,7 @@ The recommendations below focus on **optional enhancements** that could improve 
 import OSLog
 
 extension Logger {
-    static let cloudSync = Logger(subsystem: "com.furfarch.MyHealthData", category: "CloudSync")
+    static let cloudSync = Logger(subsystem: "com.furfarch.Purus Health", category: "CloudSync")
 }
 
 // Replace: ShareDebugStore.shared.appendLog("message")
@@ -98,8 +98,8 @@ extension Logger {
 // Constants.swift
 enum AppConstants {
     enum CloudKit {
-        static let containerID = "iCloud.com.furfarch.MyHealthData"
-        static let shareZoneName = "MyHealthDataShareZone"
+        static let containerID = "iCloud.com.furfarch.Purus Health"
+        static let shareZoneName = "Purus HealthShareZone"
         static let recordType = "MedicalRecord"
     }
 }
@@ -113,7 +113,7 @@ enum AppConstants {
 **Issue:** Mixed patterns - some errors logged, some thrown, some silently ignored.
 
 **Locations:**
-- `MyHealthDataApp.swift:46-54` - Uses force unwrap as fallback
+- `Purus HealthApp.swift:46-54` - Uses force unwrap as fallback
 - `RecordListView.swift:207-210` - Silent error suppression
 - `CloudSyncService.swift:153` - Errors logged but not surfaced
 
@@ -152,7 +152,7 @@ enum AppError: LocalizedError {
 **Priority: MEDIUM** (for maintainability and confidence in changes)
 
 **Current state:**
-- `MyHealthDataTests.swift:1-281` - Good model tests ✅
+- `Purus HealthTests.swift:1-281` - Good model tests ✅
 - `CloudDefaultOffTests.swift` - CloudKit behavior tests ✅
 - **Missing:** Service layer tests, UI tests, integration tests
 
@@ -166,7 +166,7 @@ enum AppError: LocalizedError {
 
 **Suggested structure:**
 ```
-MyHealthDataTests/
+Purus HealthTests/
 ├── Models/
 │   └── MedicalRecordValidationTests.swift (new)
 ├── Services/
@@ -470,7 +470,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
-        run: xcodebuild test -scheme MyHealthData -destination 'platform=iOS Simulator,name=iPhone 15'
+        run: xcodebuild test -scheme Purus Health -destination 'platform=iOS Simulator,name=iPhone 15'
 ```
 
 **Effort:** 1 hour
@@ -607,11 +607,11 @@ The app is already production-ready and secure.
 2. ⚠️ `Item.swift` - Delete (deprecated template)
 3. 📝 `CloudSyncService.swift` - Replace debug logging with OSLog
 4. 📝 Multiple files - Extract CloudKit constants
-5. 📝 `MyHealthDataApp.swift:46-54` - Improve error handling
+5. 📝 `Purus HealthApp.swift:46-54` - Improve error handling
 
 ---
 
 *Generated: 2026-01-20*
-*Codebase: MyHealthData v1.0 (6,737 LOC)*
+*Codebase: Purus Health v1.0 (6,737 LOC)*
 *Status: Production-ready, released*
 *Assessment: Secure, well-architected, ready to use*

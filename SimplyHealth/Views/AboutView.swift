@@ -52,7 +52,7 @@ struct AboutView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                Text("MyHealthData")
+                Text("Purus Health")
                     .font(.title)
                     .bold()
                 Text("Build: 2026-01, by furfarch")

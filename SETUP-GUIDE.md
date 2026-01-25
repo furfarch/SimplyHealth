@@ -1,6 +1,6 @@
-# Simply Health - Setup Guide
+# Purus Health - Setup Guide
 
-Complete setup guide for renaming from MyHealthData to SimplyHealth, including App Store Connect and CloudKit configuration.
+Complete setup guide for renaming from Purus Health to PurusHealth, including App Store Connect and CloudKit configuration.
 
 ---
 
@@ -8,12 +8,12 @@ Complete setup guide for renaming from MyHealthData to SimplyHealth, including A
 
 The following have already been completed and pushed to GitHub:
 
-- ✅ Renamed project: `MyHealthData.xcodeproj` → `SimplyHealth.xcodeproj`
-- ✅ Renamed folders: `MyHealthData/` → `SimplyHealth/`
+- ✅ Renamed project: `Purus Health.xcodeproj` → `PurusHealth.xcodeproj`
+- ✅ Renamed folders: `Purus Health/` → `PurusHealth/`
 - ✅ Renamed test folders
 - ✅ Updated all Xcode project references
-- ✅ Updated CloudKit container ID: `iCloud.com.furfarch.SimplyHealth`
-- ✅ Updated bundle identifier: `com.furfarch.SimplyHealth`
+- ✅ Updated CloudKit container ID: `icloud.com.purus.health`
+- ✅ Updated bundle identifier: `com.purus.health`
 - ✅ Updated README and documentation
 
 ---
@@ -25,10 +25,10 @@ The following have already been completed and pushed to GitHub:
 **Time Required:** 2 minutes
 
 #### Steps:
-1. Go to https://github.com/furfarch/MyHealthData
+1. Go to https://github.com/furfarch/Purus Health
 2. Click **Settings** tab
 3. Scroll down to **"Repository name"** section
-4. Change `MyHealthData` to `SimplyHealth`
+4. Change `Purus Health` to `PurusHealth`
 5. Click **"Rename"** button
 
 GitHub automatically:
@@ -39,7 +39,7 @@ GitHub automatically:
 #### Update Local Git Remote:
 ```bash
 cd /path/to/project
-git remote set-url origin https://github.com/furfarch/SimplyHealth.git
+git remote set-url origin https://github.com/furfarch/PurusHealth.git
 git remote -v  # Verify the change
 ```
 
@@ -56,31 +56,31 @@ git remote -v  # Verify the change
 3. Select **Identifiers** in left sidebar
 4. Click **CloudKit Containers** from dropdown
 5. Click the **+** button
-6. Enter identifier: `iCloud.com.furfarch.SimplyHealth`
-7. Enter description: "Simply Health - Medical Records App"
+6. Enter identifier: `icloud.com.purus.health`
+7. Enter description: "Purus Health - Medical Records App"
 8. Click **Continue**, then **Register**
 
 #### B. Verify Container in Xcode
 
-1. Open `SimplyHealth.xcodeproj` in Xcode
+1. Open `PurusHealth.xcodeproj` in Xcode
 2. Select the project in navigator
-3. Select the **SimplyHealth** target
+3. Select the **PurusHealth** target
 4. Go to **Signing & Capabilities** tab
 5. In **iCloud** section:
    - ✅ CloudKit should already be checked
    - Under **Containers**, click **+**
-   - Select `iCloud.com.furfarch.SimplyHealth`
+   - Select `icloud.com.purus.health`
    - Or if not listed yet, click **Specify custom container**
-   - Enter: `iCloud.com.furfarch.SimplyHealth`
+   - Enter: `icloud.com.purus.health`
 
 #### C. Configure CloudKit Dashboard (Optional but Recommended)
 
 1. Go to [CloudKit Dashboard](https://icloud.developer.apple.com/dashboard/)
-2. Select `iCloud.com.furfarch.SimplyHealth` container
+2. Select `icloud.com.purus.health` container
 3. Go to **Schema** section
 4. The app will create schemas automatically, but you can verify:
    - Record Type: `MedicalRecord`
-   - Custom Zone: `SimplyHealthShareZone`
+   - Custom Zone: `PurusHealthShareZone`
 
 ---
 
@@ -97,24 +97,24 @@ git remote -v  # Verify the change
 3. Click **+** → **New App**
 4. Fill in details:
    - **Platform:** iOS (can add macOS later)
-   - **Name:** Simply Health
+   - **Name:** Purus Health
    - **Primary Language:** English (US)
-   - **Bundle ID:** Create new → `com.furfarch.SimplyHealth`
-   - **SKU:** `com.furfarch.SimplyHealth`
+   - **Bundle ID:** Create new → `com.purus.health`
+   - **SKU:** `com.purus.health`
    - **User Access:** Full Access
 
-**If updating EXISTING MyHealthData app:**
+**If updating EXISTING Purus Health app:**
 
 ⚠️ **Important:** You CANNOT change the bundle identifier of an existing app.
 
 **Your options:**
 1. **Create a NEW app** with new bundle ID (recommended for major rebrand)
-2. **Keep existing app** and just update the display name to "Simply Health"
+2. **Keep existing app** and just update the display name to "Purus Health"
 
 **To update display name only:**
 1. Go to existing app in App Store Connect
 2. Go to **App Information**
-3. Change **Name** to "Simply Health"
+3. Change **Name** to "Purus Health"
 4. Update **Subtitle** if needed
 5. Update **Description** to reference "Simply Series"
 
@@ -133,7 +133,7 @@ git remote -v  # Verify the change
 1. Go to **App Store** tab
 2. Click on version (e.g., "1.0 Prepare for Submission")
 3. Update metadata:
-   - **Name:** Simply Health
+   - **Name:** Purus Health
    - **Subtitle:** Medical records for humans and pets
    - **Description:** Include "Part of the Simply Series" branding
    - **Keywords:** health, medical, records, tracking, simply
@@ -142,7 +142,7 @@ git remote -v  # Verify the change
 
 #### D. Update Screenshots and Promotional Text
 
-Update your App Store assets to reflect Simply Health branding:
+Update your App Store assets to reflect Purus Health branding:
 - Update app screenshots
 - Update app preview videos (if any)
 - Update promotional text
@@ -156,29 +156,29 @@ Update your App Store assets to reflect Simply Health branding:
 
 #### A. Update Display Name
 
-1. Open `SimplyHealth.xcodeproj` in Xcode
+1. Open `PurusHealth.xcodeproj` in Xcode
 2. Select project in navigator
-3. Select **SimplyHealth** target
+3. Select **PurusHealth** target
 4. Go to **Info** tab
 5. Find or add key: `Bundle display name`
-6. Set value to: `Simply Health`
+6. Set value to: `Purus Health`
 
 Or edit directly in `Info.plist`:
 ```xml
 <key>CFBundleDisplayName</key>
-<string>Simply Health</string>
+<string>Purus Health</string>
 ```
 
 #### B. Verify Bundle Identifier
 
 1. In **General** tab
-2. Verify **Bundle Identifier:** `com.furfarch.SimplyHealth`
+2. Verify **Bundle Identifier:** `com.purus.health`
 3. This should already be correct from our refactoring
 
 #### C. Update App Icons (If Needed)
 
-If your app icons still show "MyHealthData" branding:
-1. Design new icons with "Simply Health" or just "SH" logo
+If your app icons still show "Purus Health" branding:
+1. Design new icons with "Purus Health" or just "SH" logo
 2. Replace in `Assets.xcassets/AppIcon.appiconset/`
 3. Use all required sizes (1024x1024 for App Store)
 
@@ -224,7 +224,7 @@ If your app icons still show "MyHealthData" branding:
 #### C. Test Multi-Platform
 
 **On macOS:**
-1. Open `SimplyHealth.xcodeproj`
+1. Open `PurusHealth.xcodeproj`
 2. Select "My Mac" destination
 3. Build and run (⌘+R)
 4. Verify UI renders correctly
@@ -238,7 +238,7 @@ Update any remaining documentation:
 
 #### A. Update .github/copilot-instructions.md
 
-Search for any remaining "MyHealthData" references and update to "SimplyHealth"
+Search for any remaining "Purus Health" references and update to "PurusHealth"
 
 #### B. Create CHANGELOG.md
 
@@ -249,7 +249,7 @@ Document the rebrand:
 
 ## [2.0.0] - 2026-01-22
 ### Changed
-- **BREAKING:** Rebranded from MyHealthData to Simply Health
+- **BREAKING:** Rebranded from Purus Health to Purus Health
 - Now part of the Simply Series family of apps
 - Updated CloudKit container ID
 - Updated bundle identifier
@@ -262,12 +262,12 @@ Document the rebrand:
 
 | Item | Old Value | New Value | Status |
 |------|-----------|-----------|--------|
-| **Project Name** | MyHealthData.xcodeproj | SimplyHealth.xcodeproj | ✅ Complete |
-| **Bundle ID** | com.furfarch.MyHealthData | com.furfarch.SimplyHealth | ✅ Complete |
-| **CloudKit Container** | iCloud.com.furfarch.MyHealthData | iCloud.com.furfarch.SimplyHealth | ⏳ Create |
-| **Display Name** | MyHealthData | Simply Health | ⏳ Update |
-| **GitHub Repo** | furfarch/MyHealthData | furfarch/SimplyHealth | ⏳ Rename |
-| **App Store** | MyHealthData | Simply Health | ⏳ Update |
+| **Project Name** | Purus Health.xcodeproj | PurusHealth.xcodeproj | ✅ Complete |
+| **Bundle ID** | com.furfarch.Purus Health | com.purus.health | ✅ Complete |
+| **CloudKit Container** | iCloud.com.furfarch.Purus Health | icloud.com.purus.health | ⏳ Create |
+| **Display Name** | Purus Health | Purus Health | ⏳ Update |
+| **GitHub Repo** | furfarch/Purus Health | furfarch/PurusHealth | ⏳ Rename |
+| **App Store** | Purus Health | Purus Health | ⏳ Update |
 
 ---
 
@@ -283,8 +283,8 @@ Document the rebrand:
 - Consider providing migration instructions
 
 **Recommended approach:**
-1. Release as a NEW app ("Simply Health")
-2. Keep old app ("MyHealthData") available for download
+1. Release as a NEW app ("Purus Health")
+2. Keep old app ("Purus Health") available for download
 3. Provide export from old app → import to new app
 
 ### CloudKit Data
@@ -360,7 +360,7 @@ Use this checklist to track your progress:
 **Solution:**
 ```bash
 git remote remove origin
-git remote add origin https://github.com/furfarch/SimplyHealth.git
+git remote add origin https://github.com/furfarch/PurusHealth.git
 ```
 
 ---

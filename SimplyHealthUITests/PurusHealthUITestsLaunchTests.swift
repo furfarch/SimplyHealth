@@ -1,13 +1,13 @@
 //
-//  MyHealthDataUITestsLaunchTests.swift
-//  MyHealthDataUITests
+//  PurusHealthUITestsLaunchTests.swift
+//  PurusHealthUITests
 //
 //  Created by Chris Furfari on 05.01.2026.
 //
 
 import XCTest
 
-final class MyHealthDataUITestsLaunchTests: XCTestCase {
+final class PurusHealthUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

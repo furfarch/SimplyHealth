@@ -1,21 +1,21 @@
-# MyHealthData - Improvements Review (Revised with Simply Series Template Context)
+# Purus Health - Improvements Review (Revised with Simply Series Template Context)
 
 ## Executive Summary
 
-After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I can now provide a more informed assessment of MyHealthData.
+After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I can now provide a more informed assessment of Purus Health.
 
-**Key Finding:** MyHealthData is **significantly more sophisticated and production-ready** than the Simply Series template. It already implements many advanced patterns that the template doesn't include.
+**Key Finding:** Purus Health is **significantly more sophisticated and production-ready** than the Simply Series template. It already implements many advanced patterns that the template doesn't include.
 
 ---
 
-## Comparison: MyHealthData vs Simply Series Template
+## Comparison: Purus Health vs Simply Series Template
 
 ### Architecture Comparison
 
-| Aspect | Simply Series Template | MyHealthData | Assessment |
+| Aspect | Simply Series Template | Purus Health | Assessment |
 |--------|----------------------|--------------|------------|
 | **Data Model** | Single `Item` with timestamp | 13 interconnected models | ✅ Much more complex, appropriate for domain |
-| **Error Handling** | `fatalError()` on container failure | Fallback to in-memory container | ✅ MyHealthData is BETTER |
+| **Error Handling** | `fatalError()` on container failure | Fallback to in-memory container | ✅ Purus Health is BETTER |
 | **CloudKit** | Not included | Full integration + sharing | ✅ Advanced feature set |
 | **Architecture** | Simple CRUD | Services layer + CloudKit managers | ✅ Appropriate complexity |
 | **Views** | Single ContentView | 37 specialized views | ✅ Proper separation |
@@ -23,43 +23,43 @@ After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I 
 | **Export** | None | PDF export with HTML rendering | ✅ Advanced feature |
 | **File Protection** | Not mentioned | Implemented (`AppFileProtection.swift`) | ✅ Security conscious |
 
-### What MyHealthData Does BETTER Than Template
+### What Purus Health Does BETTER Than Template
 
-1. **Error Handling** (lines 44-54 in `MyHealthDataApp.swift`):
+1. **Error Handling** (lines 44-54 in `Purus HealthApp.swift`):
    ```swift
    // Template uses: fatalError("Unable to create ModelContainer")
-   // MyHealthData uses: try-catch with in-memory fallback
+   // Purus Health uses: try-catch with in-memory fallback
    ```
-   ✅ **MyHealthData's approach is production-grade, template's is development-only**
+   ✅ **Purus Health's approach is production-grade, template's is development-only**
 
 2. **CloudKit Integration**:
    - Template: None
-   - MyHealthData: Full sync + sharing + zone management
+   - Purus Health: Full sync + sharing + zone management
    ✅ **Significantly more advanced**
 
 3. **Service Layer**:
    - Template: Direct SwiftData access in views
-   - MyHealthData: Dedicated service classes
+   - Purus Health: Dedicated service classes
    ✅ **Better separation of concerns**
 
 4. **Testing**:
    - Template: Basic test structure
-   - MyHealthData: Comprehensive model tests with edge cases
+   - Purus Health: Comprehensive model tests with edge cases
    ✅ **Better test coverage**
 
 5. **Data Complexity**:
    - Template: One model (`Item`)
-   - MyHealthData: 13 related models with relationships
+   - Purus Health: 13 related models with relationships
    ✅ **Appropriate for medical records domain**
 
 ---
 
-## What MyHealthData Could Learn From Template
+## What Purus Health Could Learn From Template
 
 ### 1. Simplify Where Possible ✅
 **Template Pattern:** Minimal dependencies, focused scope
 
-**MyHealthData Status:** Already doing well here
+**Purus Health Status:** Already doing well here
 - Local-first design ✅
 - CloudKit is optional per-record ✅
 - No unnecessary third-party dependencies ✅
@@ -69,7 +69,7 @@ After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I 
 ### 2. Code Duplication (CloudKit Services) ⚠️
 **Template Pattern:** Single source of truth for each concern
 
-**Issue in MyHealthData:**
+**Issue in Purus Health:**
 - `CloudKitManager.swift` - appears legacy
 - `CloudSyncService.swift` - actively used
 
@@ -80,14 +80,14 @@ After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I 
 ### 3. Error Handling Pattern 🤔
 **Template Pattern:** `fatalError()` for unrecoverable errors
 
-**MyHealthData Pattern:** Fallback to in-memory container
+**Purus Health Pattern:** Fallback to in-memory container
 
 **Analysis:**
 - Template's approach: App crashes if persistence fails
-- MyHealthData's approach: App continues with in-memory (data loss on quit)
+- Purus Health's approach: App continues with in-memory (data loss on quit)
 
 **Which is better?**
-- ✅ **MyHealthData's approach is better for production**
+- ✅ **Purus Health's approach is better for production**
 - For a medical records app, continuing with in-memory is questionable (user loses data)
 - However, it's still better than crashing
 
@@ -100,9 +100,9 @@ After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I 
 ### 4. Navigation Simplicity
 **Template Pattern:** Single `NavigationSplitView` in ContentView
 
-**MyHealthData Pattern:** Multiple view hierarchies
+**Purus Health Pattern:** Multiple view hierarchies
 
-**Analysis:** MyHealthData's complexity is justified by feature set
+**Analysis:** Purus Health's complexity is justified by feature set
 - Multiple record types
 - Editor vs Viewer modes
 - Settings and export screens
@@ -112,7 +112,7 @@ After reviewing the **Simply Series Template** (from DriverLog/Simply Drive), I 
 ### 5. Naming Consistency 📝
 **Template Pattern:** Clear, descriptive names following Swift conventions
 
-**MyHealthData Status:** Mostly good, some inconsistencies
+**Purus Health Status:** Mostly good, some inconsistencies
 
 **Examples:**
 - ✅ Good: `RecordEditorView`, `CloudSyncService`
@@ -168,8 +168,8 @@ extension Logger {
 ```swift
 enum AppConfig {
     enum CloudKit {
-        static let containerID = "iCloud.com.furfarch.MyHealthData"
-        static let shareZoneName = "MyHealthDataShareZone"
+        static let containerID = "iCloud.com.furfarch.Purus Health"
+        static let shareZoneName = "Purus HealthShareZone"
     }
 }
 ```
@@ -178,9 +178,9 @@ enum AppConfig {
 **Effort:** 30 minutes
 **Template Alignment:** HIGH
 
-### 🔍 Where MyHealthData EXCEEDS Template (Keep As-Is)
+### 🔍 Where Purus Health EXCEEDS Template (Keep As-Is)
 
-These patterns in MyHealthData are MORE advanced than the template—don't simplify:
+These patterns in Purus Health are MORE advanced than the template—don't simplify:
 
 1. ✅ **Fallback error handling** (better than template's fatalError)
 2. ✅ **Service layer architecture** (better than direct SwiftData in views)
@@ -192,9 +192,9 @@ These patterns in MyHealthData are MORE advanced than the template—don't simpl
 
 ### 🚫 Template Patterns That Don't Apply
 
-These template patterns are too simple for MyHealthData:
+These template patterns are too simple for Purus Health:
 
-1. ❌ Single view architecture (MyHealthData needs multiple views)
+1. ❌ Single view architecture (Purus Health needs multiple views)
 2. ❌ Single model (medical records need 13 entity types)
 3. ❌ No cloud sync (users need CloudKit sharing)
 4. ❌ Basic CRUD only (export, sharing needed)
@@ -218,7 +218,7 @@ These template patterns are too simple for MyHealthData:
    - Priority: MEDIUM (unchanged)
    - Replace custom debug system with OSLog
 
-### 🟢 What MyHealthData Already Does Right
+### 🟢 What Purus Health Already Does Right
 
 1. ✅ Clean separation of Models, Views, Services
 2. ✅ SwiftData @Model usage consistent with template
@@ -276,7 +276,7 @@ These align with template philosophy of clean, focused code:
 
 ### 🎨 UX Improvements (Beyond Template)
 
-MyHealthData is a more complex app than the template—these remain valuable:
+Purus Health is a more complex app than the template—these remain valuable:
 
 1. **Add input validation** - 2 hours
 2. **Add search/filtering** - 4 hours
@@ -299,11 +299,11 @@ MyHealthData is a more complex app than the template—these remain valuable:
 
 ### What I Got Wrong Initially
 
-1. ❌ **Criticized error handling** - MyHealthData's fallback is BETTER than template
+1. ❌ **Criticized error handling** - Purus Health's fallback is BETTER than template
 2. ❌ **Over-emphasized testing** - Template has basic coverage, that's fine
 3. ❌ **Suggested dependency injection** - Template uses singletons, it works
 4. ❌ **Recommended repository pattern** - Template doesn't use, unnecessary
-5. ❌ **Security concerns** - Both rely on iOS, MyHealthData has extra protections
+5. ❌ **Security concerns** - Both rely on iOS, Purus Health has extra protections
 
 ### What I Got Right
 
@@ -315,7 +315,7 @@ MyHealthData is a more complex app than the template—these remain valuable:
 
 ### The Big Picture
 
-**MyHealthData is already EXCELLENT** - it follows the Simply Series philosophy while adding:
+**Purus Health is already EXCELLENT** - it follows the Simply Series philosophy while adding:
 - ✅ Production-grade error handling (better than template)
 - ✅ Advanced CloudKit integration (beyond template scope)
 - ✅ Rich feature set (export, sharing)
@@ -374,22 +374,22 @@ Only if actively developing or onboarding others:
 
 ### Comparing to Template
 
-| Metric | Simply Series Template | MyHealthData | Winner |
+| Metric | Simply Series Template | Purus Health | Winner |
 |--------|----------------------|--------------|---------|
 | Simplicity | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | Template (by design) |
-| Production Readiness | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | MyHealthData |
-| Error Handling | ⭐⭐ (fatalError) | ⭐⭐⭐⭐⭐ (fallback) | MyHealthData |
-| Feature Completeness | ⭐⭐ (basic CRUD) | ⭐⭐⭐⭐⭐ (export, sync) | MyHealthData |
+| Production Readiness | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Purus Health |
+| Error Handling | ⭐⭐ (fatalError) | ⭐⭐⭐⭐⭐ (fallback) | Purus Health |
+| Feature Completeness | ⭐⭐ (basic CRUD) | ⭐⭐⭐⭐⭐ (export, sync) | Purus Health |
 | Code Cleanliness | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Template (slight edge) |
-| Testing | ⭐⭐⭐ | ⭐⭐⭐⭐ | MyHealthData |
+| Testing | ⭐⭐⭐ | ⭐⭐⭐⭐ | Purus Health |
 | Documentation | ⭐⭐⭐ | ⭐⭐ | Template |
 | Maintainability | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Template (simpler) |
 
 ### Bottom Line
 
-**MyHealthData is a production app, not a template.**
+**Purus Health is a production app, not a template.**
 
-The Simply Series template is intentionally minimal for quick starts. MyHealthData has graduated beyond template stage into a full-featured application.
+The Simply Series template is intentionally minimal for quick starts. Purus Health has graduated beyond template stage into a full-featured application.
 
 **What to do:**
 1. ✅ Clean up template remnants (Item.swift, CloudKitManager.swift)
@@ -398,11 +398,11 @@ The Simply Series template is intentionally minimal for quick starts. MyHealthDa
 4. 🤔 Consider optional UX polish (validation, search)
 5. ❌ Don't simplify to template level (you've outgrown it)
 
-**Verdict:** MyHealthData is already excellent. Just needs 4 hours of cleanup to remove template cruft and standardize logging.
+**Verdict:** Purus Health is already excellent. Just needs 4 hours of cleanup to remove template cruft and standardize logging.
 
 ---
 
 *Generated: 2026-01-22*
 *Compared against: Simply Series Template (DriverLog v1.0)*
-*Assessment: MyHealthData exceeds template in production-readiness*
+*Assessment: Purus Health exceeds template in production-readiness*
 *Recommended action: 4-hour cleanup, optional 14-hour polish*
