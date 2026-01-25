@@ -12,7 +12,7 @@ enum AppConfig {
     /// CloudKit configuration constants
     enum CloudKit {
         /// CloudKit container identifier
-        static let containerID = "icloud.com.purus.health"
+        static let containerID = "iCloud.com.purus.health"
 
         /// Custom zone name for sharing
         static let shareZoneName = "PurusHealthShareZone"

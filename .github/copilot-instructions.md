@@ -118,7 +118,7 @@ SimplyHealth/
 
 ## Cloud and Sharing Features
 
-- CloudKit container identifier: `icloud.com.purus.health`
+- CloudKit container identifier: `iCloud.com.purus.health`
 - Sharing is per-record, not app-wide
 - Use `CloudSyncService` for cloud operations
 - Track record location status: `.local`, `.iCloud`, or `.shared`
