@@ -8,25 +8,26 @@
 import Foundation
 
 /// Central configuration for Purus Health app
+/// Properties marked nonisolated(unsafe) to allow access from any actor context
 enum AppConfig {
     /// CloudKit configuration constants
     enum CloudKit {
         /// CloudKit container identifier
-        static let containerID = "iCloud.com.purus.health"
+        nonisolated(unsafe) static let containerID = "iCloud.com.purus.health"
 
         /// Custom zone name for sharing
-        static let shareZoneName = "PurusHealthShareZone"
+        nonisolated(unsafe) static let shareZoneName = "PurusHealthShareZone"
 
         /// Record type name for medical records
-        static let recordType = "MedicalRecord"
+        nonisolated(unsafe) static let recordType = "MedicalRecord"
     }
 
     /// App information
     enum Info {
         /// App display name
-        static let appName = "Purus Health"
+        nonisolated(unsafe) static let appName = "Purus Health"
 
         /// App bundle identifier
-        static let bundleID = "com.purus.health"
+        nonisolated(unsafe) static let bundleID = "com.purus.health"
     }
 }
