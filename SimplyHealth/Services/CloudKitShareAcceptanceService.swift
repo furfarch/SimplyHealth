@@ -34,13 +34,20 @@ final class CloudKitShareAcceptanceService {
                 ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: unable to fetch CKShare for participants: \(error)")
             }
 
-            CloudKitSharedImporter.upsertSharedMedicalRecords(
+            let importedNames = CloudKitSharedImporter.upsertSharedMedicalRecords(
                 recordsByID.values,
                 share: fetchedShare,
                 modelContext: modelContext
             )
 
             ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: import complete (count=\(recordsByID.count))")
+
+            // Post notification so ContentView can refresh and show the imported records
+            NotificationCenter.default.post(
+                name: NotificationNames.didAcceptShare,
+                object: nil,
+                userInfo: ["names": importedNames]
+            )
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: accept failed error=\(error)")
             ShareDebugStore.shared.lastError = error
@@ -144,7 +151,10 @@ final class CloudKitShareAcceptanceService {
 
 @MainActor
 private enum CloudKitSharedImporter {
-    static func upsertSharedMedicalRecords(_ ckRecords: some Sequence<CKRecord>, share: CKShare?, modelContext: ModelContext) {
+    /// Upserts shared medical records and returns the display names of imported records.
+    @discardableResult
+    static func upsertSharedMedicalRecords(_ ckRecords: some Sequence<CKRecord>, share: CKShare?, modelContext: ModelContext) -> [String] {
+        var importedNames: [String] = []
         for ckRecord in ckRecords {
             guard ckRecord.recordType == "MedicalRecord" else { continue }
             guard let uuid = ckRecord["uuid"] as? String else { continue }
@@ -200,6 +210,9 @@ private enum CloudKitSharedImporter {
             if existing == nil {
                 modelContext.insert(record)
             }
+
+            // Capture the display name for the notification
+            importedNames.append(record.displayName)
         }
 
         do {
@@ -207,6 +220,8 @@ private enum CloudKitSharedImporter {
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitSharedImporter: failed saving import: \(error)")
         }
+
+        return importedNames
     }
 
     private static func participantsSummary(from share: CKShare) -> String {
