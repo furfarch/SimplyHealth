@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  Simply Health
+//  Purus Health
 //
 //  Created by Chris Furfari on 05.01.2026.
 //

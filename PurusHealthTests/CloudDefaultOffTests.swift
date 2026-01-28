@@ -1,5 +1,5 @@
 import Testing
-@testable import MyHealthData
+@testable import PurusHealth
 
 struct CloudDefaultOffTests {
     @Test func newMedicalRecordIsLocalOnlyByDefault() async throws {
