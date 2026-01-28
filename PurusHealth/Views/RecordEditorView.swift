@@ -456,6 +456,17 @@ struct RecordEditorView: View {
         record.updatedAt = Date()
         do {
             try modelContext.save()
+            // Automatically sync cloud-enabled records after save
+            if record.isCloudEnabled {
+                Task {
+                    do {
+                        try await CloudSyncService.shared.syncIfNeeded(record: record)
+                    } catch {
+                        // Log error but don't fail the save operation
+                        ShareDebugStore.shared.appendLog("RecordEditorView: auto-sync failed after save: \(error)")
+                    }
+                }
+            }
         } catch {
             saveErrorMessage = "Save failed: \(error.localizedDescription)"
         }

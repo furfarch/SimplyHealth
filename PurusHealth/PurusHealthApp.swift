@@ -64,8 +64,56 @@ struct PurusHealthApp: App {
                 .task {
                     // Best-effort: trigger import of any pending cloud/shared changes on launch
                     cloudFetcher.fetchChanges()
+                    
+                    // Also fetch shared records on launch
+                    Task { @MainActor in
+                        await fetchSharedRecordsOnLaunch()
+                    }
+                }
+                .onChange(of: scenePhase) { oldPhase, newPhase in
+                    // Sync when app becomes active to get latest changes
+                    if newPhase == .active {
+                        cloudFetcher.fetchChanges()
+                        
+                        // Also sync cloud-enabled records to push local changes
+                        Task { @MainActor in
+                            await syncCloudEnabledRecords()
+                            await fetchSharedRecordsOnLaunch()
+                        }
+                    }
                 }
         }
         .modelContainer(modelContainer)
+    }
+    
+    @MainActor
+    private func syncCloudEnabledRecords() async {
+        let context = modelContainer.mainContext
+        let fetchDescriptor = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.isCloudEnabled == true })
+        
+        guard let records = try? context.fetch(fetchDescriptor) else { return }
+        
+        for record in records {
+            do {
+                try await CloudSyncService.shared.syncIfNeeded(record: record)
+            } catch {
+                // Best-effort: log error but continue syncing other records
+                ShareDebugStore.shared.appendLog("PurusHealthApp: failed to sync record \(record.uuid): \(error)")
+            }
+        }
+    }
+    
+    @MainActor
+    private func fetchSharedRecordsOnLaunch() async {
+        do {
+            let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(
+                containerIdentifier: AppConfig.CloudKit.containerID,
+                modelContext: modelContainer.mainContext
+            )
+            _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
+        } catch {
+            // Best-effort: log but don't fail the app
+            ShareDebugStore.shared.appendLog("PurusHealthApp: failed to fetch shared records on launch: \(error)")
+        }
     }
 }

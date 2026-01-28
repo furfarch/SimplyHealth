@@ -197,13 +197,26 @@ struct RecordListView: View {
         let wantsCloudRefresh = allRecords.contains(where: { $0.isCloudEnabled || $0.locationStatus == .shared })
         guard wantsCloudRefresh else { return }
 
+        // First, push any local changes to CloudKit for cloud-enabled records
+        let cloudEnabledRecords = allRecords.filter { $0.isCloudEnabled }
+        for record in cloudEnabledRecords {
+            do {
+                try await CloudSyncService.shared.syncIfNeeded(record: record)
+            } catch {
+                // Best-effort: log error but continue syncing other records
+                ShareDebugStore.shared.appendLog("RecordListView: refresh upload sync failed for \(record.uuid): \(error)")
+            }
+        }
+        
+        // Then, fetch changes from CloudKit (download)
         let fetcher = CloudKitMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
         fetcher.fetchChanges()
 
         // Also pull shared records (if any) so changes from others can appear.
+        // Use zone-based fetcher for more reliable shared record retrieval
         do {
-            let sharedFetcher = CloudKitSharedMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
-            _ = try await sharedFetcher.fetchAllSharedAsync()
+            let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
+            _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
         } catch {
             // Best-effort; don't fail refresh UI.
             ShareDebugStore.shared.appendLog("RecordListView: refresh shared fetch failed: \(error)")

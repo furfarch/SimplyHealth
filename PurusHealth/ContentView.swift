@@ -57,6 +57,9 @@ struct ContentView: View {
                         
                         // Force refresh after fetch completes
                         modelContext.processPendingChanges()
+                        
+                        // Post notification to ensure UI refreshes
+                        NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
                     } catch {
                         ShareDebugStore.shared.appendLog("ContentView: shared-zone fetch after accept failed: \(error)")
                     }
