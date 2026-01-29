@@ -144,16 +144,15 @@ final class CloudKitSharedZoneMedicalRecordFetcher {
             record.emergencyNumber = ckRecord["emergencyNumber"] as? String ?? ""
             record.emergencyEmail = ckRecord["emergencyEmail"] as? String ?? ""
 
-            // Shared records should always be marked as shared.
+            // Shared records should always be marked as shared and cloud-enabled
+            // since they exist in CloudKit (even if user hasn't enabled global cloud sync).
+            record.isCloudEnabled = true
             record.isSharingEnabled = true
             record.cloudRecordName = ckRecord.recordID.recordName
 
             if let shareRef = ckRecord.share {
                 record.cloudShareRecordName = shareRef.recordID.recordName
             }
-
-            // Do NOT stomp a user's per-record cloud syncing preference. Shared visibility is independent.
-            // (locationStatus uses cloudShareRecordName/isSharingEnabled to show the shared badge.)
 
             if existing == nil {
                 context.insert(record)

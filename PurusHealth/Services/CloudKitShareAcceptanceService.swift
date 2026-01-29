@@ -34,7 +34,7 @@ final class CloudKitShareAcceptanceService {
                 ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: unable to fetch CKShare for participants: \(error)")
             }
 
-            let importedNames = CloudKitSharedImporter.upsertSharedMedicalRecords(
+            let importedNames = try CloudKitSharedImporter.upsertSharedMedicalRecords(
                 recordsByID.values,
                 share: fetchedShare,
                 modelContext: modelContext
@@ -152,8 +152,9 @@ final class CloudKitShareAcceptanceService {
 @MainActor
 private enum CloudKitSharedImporter {
     /// Upserts shared medical records and returns the display names of imported records.
+    /// Throws if the save fails so callers can handle the error appropriately.
     @discardableResult
-    static func upsertSharedMedicalRecords(_ ckRecords: some Sequence<CKRecord>, share: CKShare?, modelContext: ModelContext) -> [String] {
+    static func upsertSharedMedicalRecords(_ ckRecords: some Sequence<CKRecord>, share: CKShare?, modelContext: ModelContext) throws -> [String] {
         var importedNames: [String] = []
         for ckRecord in ckRecords {
             guard ckRecord.recordType == "MedicalRecord" else { continue }
@@ -192,8 +193,9 @@ private enum CloudKitSharedImporter {
             record.emergencyNumber = ckRecord["emergencyNumber"] as? String ?? ""
             record.emergencyEmail = ckRecord["emergencyEmail"] as? String ?? ""
 
-            let cloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
-            record.isCloudEnabled = cloudEnabled
+            // Shared records should ALWAYS be marked as cloud-enabled since they exist in CloudKit,
+            // regardless of whether the user has enabled global cloud sync for their own records.
+            record.isCloudEnabled = true
             record.isSharingEnabled = true
             record.cloudRecordName = ckRecord.recordID.recordName
 
@@ -217,8 +219,11 @@ private enum CloudKitSharedImporter {
 
         do {
             try modelContext.save()
+            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: successfully saved \(importedNames.count) record(s)")
         } catch {
-            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: failed saving import: \(error)")
+            ShareDebugStore.shared.appendLog("CloudKitSharedImporter: FAILED saving import: \(error)")
+            // Re-throw to inform callers that the import failed - critical for proper error handling
+            throw error
         }
 
         return importedNames
