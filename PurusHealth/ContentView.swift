@@ -16,6 +16,10 @@ struct ContentView: View {
     @State private var showShareAcceptedAlert: Bool = false
     @State private var importedName: String = ""
 
+    // Show alert when share acceptance fails
+    @State private var showShareErrorAlert: Bool = false
+    @State private var shareErrorMessage: String = ""
+
     var body: some View {
         RecordListView()
             .onOpenURL { url in
@@ -84,6 +88,20 @@ struct ContentView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("\(importedName) imported")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.shareAcceptanceFailed)) { notif in
+                // Show error alert when share acceptance fails
+                if let userInfo = notif.userInfo, let errorMsg = userInfo["error"] as? String {
+                    shareErrorMessage = errorMsg
+                } else {
+                    shareErrorMessage = "An unknown error occurred while accepting the share."
+                }
+                showShareErrorAlert = true
+            }
+            .alert("Share Failed", isPresented: $showShareErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(shareErrorMessage)
             }
     }
     

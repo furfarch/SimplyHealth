@@ -51,6 +51,13 @@ final class CloudKitShareAcceptanceService {
         } catch {
             ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: accept failed error=\(error)")
             ShareDebugStore.shared.lastError = error
+
+            // Post failure notification so the UI can show an error alert to the user
+            NotificationCenter.default.post(
+                name: NotificationNames.shareAcceptanceFailed,
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
         }
     }
 

@@ -62,23 +62,32 @@ struct PurusHealthApp: App {
             ContentView()
                 .environment(\.modelContext, modelContainer.mainContext)
                 .task {
-                    // Best-effort: trigger import of any pending cloud/shared changes on launch
-                    cloudFetcher.fetchChanges()
-                    
-                    // Also fetch shared records on launch
-                    Task { @MainActor in
+                    // Only trigger cloud fetch if user has enabled cloud sync or has cloud-enabled records.
+                    // This prevents re-importing records that were deleted locally when cloud sync is off.
+                    if await shouldFetchFromCloud() {
+                        cloudFetcher.fetchChanges()
+                    }
+
+                    // Only fetch shared records if there are existing shared records locally.
+                    // New shares are handled by the share acceptance flow (onOpenURL).
+                    if await hasSharedRecordsLocally() {
                         await fetchSharedRecordsOnLaunch()
                     }
                 }
                 .onChange(of: scenePhase) { oldPhase, newPhase in
                     // Sync when app becomes active to get latest changes
                     if newPhase == .active {
-                        cloudFetcher.fetchChanges()
-                        
-                        // Also sync cloud-enabled records to push local changes
                         Task { @MainActor in
-                            await syncCloudEnabledRecords()
-                            await fetchSharedRecordsOnLaunch()
+                            // Only sync if user has cloud-enabled records
+                            if await shouldFetchFromCloud() {
+                                cloudFetcher.fetchChanges()
+                                await syncCloudEnabledRecords()
+                            }
+
+                            // Only fetch shared records if there are existing shared records locally
+                            if await hasSharedRecordsLocally() {
+                                await fetchSharedRecordsOnLaunch()
+                            }
                         }
                     }
                 }
@@ -86,6 +95,29 @@ struct PurusHealthApp: App {
         .modelContainer(modelContainer)
     }
     
+    /// Returns true if cloud sync should be performed (user has enabled cloud sync or has cloud-enabled records).
+    @MainActor
+    private func shouldFetchFromCloud() async -> Bool {
+        // Check global cloud setting
+        let globalCloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
+        if globalCloudEnabled { return true }
+
+        // Check if any local records are cloud-enabled
+        let context = modelContainer.mainContext
+        let fetchDescriptor = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.isCloudEnabled == true })
+        let count = (try? context.fetchCount(fetchDescriptor)) ?? 0
+        return count > 0
+    }
+
+    /// Returns true if there are shared records locally that need to be updated.
+    @MainActor
+    private func hasSharedRecordsLocally() async -> Bool {
+        let context = modelContainer.mainContext
+        let fetchDescriptor = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.isSharingEnabled == true })
+        let count = (try? context.fetchCount(fetchDescriptor)) ?? 0
+        return count > 0
+    }
+
     @MainActor
     private func syncCloudEnabledRecords() async {
         let context = modelContainer.mainContext

@@ -13,4 +13,7 @@ enum NotificationNames {
 
     /// Posted when a share URL is received (pending) — used to notify the UI to accept/import it
     static let pendingShareReceived = Notification.Name("PurusHealth.PendingShareReceived")
+
+    /// Posted when share acceptance fails - userInfo contains "error" key with Error description
+    static let shareAcceptanceFailed = Notification.Name("PurusHealth.ShareAcceptanceFailed")
 }
