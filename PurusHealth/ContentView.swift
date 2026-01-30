@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import CloudKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -30,13 +31,13 @@ struct ContentView: View {
             }
             .task {
                 // Check for pending share URL on first appearance
-                await checkPendingShareURL()
+                await checkPendingShare()
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 // Check for pending share URL when app becomes active
                 if newPhase == .active {
                     Task { @MainActor in
-                        await checkPendingShareURL()
+                        await checkPendingShare()
                     }
                 }
             }
@@ -103,13 +104,42 @@ struct ContentView: View {
             } message: {
                 Text(shareErrorMessage)
             }
+            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.pendingShareReceived)) { notif in
+                // Process share immediately when received from SceneDelegate/AppDelegate
+                // This handles the case where onOpenURL doesn't fire due to custom SceneDelegate
+                guard let userInfo = notif.userInfo else { return }
+
+                // Prefer metadata (more efficient - skips URL fetch)
+                if let metadata = userInfo["metadata"] as? CKShare.Metadata {
+                    ShareDebugStore.shared.appendLog("ContentView: received pendingShareReceived with metadata")
+                    Task { @MainActor in
+                        await CloudKitShareAcceptanceService.shared.acceptShare(from: metadata, modelContext: modelContext)
+                    }
+                    return
+                }
+
+                // Fall back to URL
+                if let url = userInfo["url"] as? URL {
+                    ShareDebugStore.shared.appendLog("ContentView: received pendingShareReceived notification for URL: \(url)")
+                    Task { @MainActor in
+                        await CloudKitShareAcceptanceService.shared.acceptShare(from: url, modelContext: modelContext)
+                    }
+                }
+            }
     }
     
     @MainActor
-    private func checkPendingShareURL() async {
+    private func checkPendingShare() async {
         #if canImport(UIKit)
-        // Check if there's a pending share URL from the AppDelegate
-        if let pendingURL = PendingShareStore.shared.consume() {
+        // Check for pending share metadata first (more efficient)
+        if let metadata = PendingShareStore.shared.consumeMetadata() {
+            ShareDebugStore.shared.appendLog("ContentView: processing pending share metadata from AppDelegate")
+            await CloudKitShareAcceptanceService.shared.acceptShare(from: metadata, modelContext: modelContext)
+            return
+        }
+
+        // Fall back to pending URL
+        if let pendingURL = PendingShareStore.shared.consumeURL() {
             ShareDebugStore.shared.appendLog("ContentView: processing pending share URL from AppDelegate")
             await CloudKitShareAcceptanceService.shared.acceptShare(from: pendingURL, modelContext: modelContext)
         }

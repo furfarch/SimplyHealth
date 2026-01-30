@@ -12,6 +12,56 @@ final class CloudKitShareAcceptanceService {
 
     private init() {}
 
+    /// Accept a share directly from metadata (more efficient - skips URL fetch)
+    func acceptShare(from metadata: CKShare.Metadata, modelContext: ModelContext) async {
+        ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: acceptShare from metadata, container=\(metadata.containerIdentifier)")
+
+        do {
+            try await acceptShareMetadata(metadata)
+
+            let sharedDB = container.sharedCloudDatabase
+
+            // Fetch just the shared root record (so it appears immediately).
+            let rootID = Self.rootRecordID(from: metadata)
+            let recordsByID = try await fetchRecords(by: [rootID], from: sharedDB)
+
+            // Best-effort: also fetch the share record for participant display.
+            var fetchedShare: CKShare?
+            do {
+                let shareByID = try await fetchRecords(by: [metadata.share.recordID], from: sharedDB)
+                fetchedShare = shareByID[metadata.share.recordID] as? CKShare
+            } catch {
+                ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: unable to fetch CKShare for participants: \(error)")
+            }
+
+            let importedNames = try CloudKitSharedImporter.upsertSharedMedicalRecords(
+                recordsByID.values,
+                share: fetchedShare,
+                modelContext: modelContext
+            )
+
+            ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: import complete (count=\(recordsByID.count))")
+
+            // Post notification so ContentView can refresh and show the imported records
+            NotificationCenter.default.post(
+                name: NotificationNames.didAcceptShare,
+                object: nil,
+                userInfo: ["names": importedNames]
+            )
+        } catch {
+            ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: accept failed error=\(error)")
+            ShareDebugStore.shared.lastError = error
+
+            // Post failure notification so the UI can show an error alert to the user
+            NotificationCenter.default.post(
+                name: NotificationNames.shareAcceptanceFailed,
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
+        }
+    }
+
+    /// Accept a share from URL (fetches metadata first)
     func acceptShare(from url: URL, modelContext: ModelContext) async {
         ShareDebugStore.shared.appendLog("CloudKitShareAcceptanceService: acceptShare url=\(url.absoluteString)")
 
