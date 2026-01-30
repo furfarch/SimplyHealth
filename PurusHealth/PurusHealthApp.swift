@@ -99,15 +99,25 @@ struct PurusHealthApp: App {
         .modelContainer(modelContainer)
     }
     
-    /// Returns true if cloud sync should be performed (user has enabled cloud sync or has cloud-enabled records).
+    /// Returns true if cloud sync should be performed (user has enabled cloud sync AND has records to sync).
     @MainActor
     private func shouldFetchFromCloud() async -> Bool {
+        let context = modelContainer.mainContext
+
+        // First check: are there ANY local records at all?
+        // On Mac Catalyst, UserDefaults persist after app deletion, so we can't trust
+        // cloudEnabled alone. If database is empty, this is a fresh install - don't fetch.
+        let allRecordsDescriptor = FetchDescriptor<MedicalRecord>()
+        let totalRecords = (try? context.fetchCount(allRecordsDescriptor)) ?? 0
+        if totalRecords == 0 {
+            return false
+        }
+
         // Check global cloud setting
         let globalCloudEnabled = UserDefaults.standard.bool(forKey: "cloudEnabled")
         if globalCloudEnabled { return true }
 
         // Check if any local records are cloud-enabled
-        let context = modelContainer.mainContext
         let fetchDescriptor = FetchDescriptor<MedicalRecord>(predicate: #Predicate { $0.isCloudEnabled == true })
         let count = (try? context.fetchCount(fetchDescriptor)) ?? 0
         return count > 0
