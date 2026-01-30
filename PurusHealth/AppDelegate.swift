@@ -8,12 +8,28 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         for context in URLContexts {
             PendingShareStore.shared.pendingURL = context.url
+            // Post notification so ContentView can process the URL immediately
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NotificationNames.pendingShareReceived,
+                    object: nil,
+                    userInfo: ["url": context.url]
+                )
+            }
         }
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         if let url = userActivity.webpageURL {
             PendingShareStore.shared.pendingURL = url
+            // Post notification so ContentView can process the URL immediately
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NotificationNames.pendingShareReceived,
+                    object: nil,
+                    userInfo: ["url": url]
+                )
+            }
         }
     }
 }
@@ -31,6 +47,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
         if let url = userActivity.webpageURL {
             PendingShareStore.shared.pendingURL = url
+            // Post notification so ContentView can process the URL immediately
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NotificationNames.pendingShareReceived,
+                    object: nil,
+                    userInfo: ["url": url]
+                )
+            }
             return true
         }
         return false

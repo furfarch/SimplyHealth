@@ -103,6 +103,16 @@ struct ContentView: View {
             } message: {
                 Text(shareErrorMessage)
             }
+            .onReceive(NotificationCenter.default.publisher(for: NotificationNames.pendingShareReceived)) { notif in
+                // Process share URL immediately when received from SceneDelegate/AppDelegate
+                // This handles the case where onOpenURL doesn't fire due to custom SceneDelegate
+                if let userInfo = notif.userInfo, let url = userInfo["url"] as? URL {
+                    ShareDebugStore.shared.appendLog("ContentView: received pendingShareReceived notification for URL: \(url)")
+                    Task { @MainActor in
+                        await CloudKitShareAcceptanceService.shared.acceptShare(from: url, modelContext: modelContext)
+                    }
+                }
+            }
     }
     
     @MainActor
