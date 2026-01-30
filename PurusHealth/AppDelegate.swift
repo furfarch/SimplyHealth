@@ -9,6 +9,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     // Called when app is COLD LAUNCHED (not running) - share data comes through options
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        ShareDebugStore.shared.appendLog("SceneDelegate: willConnectTo called, urlContexts=\(connectionOptions.urlContexts.count), userActivities=\(connectionOptions.userActivities.count)")
+
         // Check for share URL in URL contexts (cold launch via URL scheme)
         for context in connectionOptions.urlContexts {
             handleShareURL(context.url)
