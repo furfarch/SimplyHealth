@@ -9,7 +9,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     // Called when app is COLD LAUNCHED (not running) - share data comes through options
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        ShareDebugStore.shared.appendLog("SceneDelegate: willConnectTo called, urlContexts=\(connectionOptions.urlContexts.count), userActivities=\(connectionOptions.userActivities.count)")
+        let urlCount = connectionOptions.urlContexts.count
+        let activityCount = connectionOptions.userActivities.count
+        ShareDebugStore.shared.appendLog("SceneDelegate: willConnectTo called, urlContexts=\(urlCount), userActivities=\(activityCount)")
+
+        // DEBUG: Show alert if we received ANY share data
+        if urlCount > 0 || activityCount > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.showDebugAlert("Share Data Received", message: "URLs: \(urlCount), Activities: \(activityCount)")
+            }
+        }
 
         // Check for share URL in URL contexts (cold launch via URL scheme)
         for context in connectionOptions.urlContexts {
@@ -24,6 +33,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     // Called when app is ALREADY RUNNING and receives a URL
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        ShareDebugStore.shared.appendLog("SceneDelegate: openURLContexts called, count=\(URLContexts.count)")
+        showDebugAlert("openURLContexts", message: "Received \(URLContexts.count) URL(s)")
         for context in URLContexts {
             handleShareURL(context.url)
         }
@@ -31,6 +42,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     // Called when app is ALREADY RUNNING and receives a user activity (universal link, CloudKit share)
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        ShareDebugStore.shared.appendLog("SceneDelegate: continue userActivity called, type=\(userActivity.activityType)")
+        showDebugAlert("continue userActivity", message: "Type: \(userActivity.activityType)")
         handleUserActivity(userActivity)
     }
 
@@ -74,6 +87,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Use Key-Value coding to access cloudKitShareMetadata safely
         // This avoids compilation issues with the property not being found
         return userActivity.value(forKey: "cloudKitShareMetadata") as? CKShare.Metadata
+    }
+
+    private func showDebugAlert(_ title: String, message: String) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return }
+
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        window.rootViewController?.present(alert, animated: true)
     }
 }
 
