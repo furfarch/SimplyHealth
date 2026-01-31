@@ -214,7 +214,9 @@ final class CloudSyncService {
         }
 
         guard let sharedCKRecord = foundRecord else {
-            throw NSError(domain: "CloudSyncService", code: 9, userInfo: [NSLocalizedDescriptionKey: "Shared record not found in shared database."])
+            // No-op: shared zone not yet attached or record not visible; avoid surfacing an error while acceptance is pending.
+            ShareDebugStore.shared.appendLog("syncSharedRecordIfNeeded: shared record not found yet for uuid=\(record.uuid); skipping write-back")
+            return
         }
 
         // Apply local changes and save to the shared database

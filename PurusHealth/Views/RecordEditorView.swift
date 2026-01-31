@@ -21,6 +21,15 @@ struct RecordEditorView: View {
         }
         return false
     }
+    
+    private var isWaitingForShareAttachment: Bool {
+        // If it's shared, but this device hasn't attached the shared zone yet, keep UI in read-only and show a hint.
+        // Without explicit zone discovery state, we reuse the same heuristic as read-only for visibility.
+        if let shareName = record.cloudShareRecordName, !shareName.isEmpty {
+            return true
+        }
+        return false
+    }
 
     init(record: MedicalRecord, startEditing: Bool = false) {
         self._record = .init(wrappedValue: record)
@@ -55,6 +64,7 @@ struct RecordEditorView: View {
                     }
                 }
                 .disabled(isSharedReadOnly)
+                .help(isWaitingForShareAttachment ? "Waiting for share acceptance" : nil)
             }
 
             #if os(iOS) || targetEnvironment(macCatalyst)
@@ -64,6 +74,7 @@ struct RecordEditorView: View {
                         showCloudSettings = true
                     }
                     .disabled(isSharedReadOnly)
+                    .help(isWaitingForShareAttachment ? "Waiting for share acceptance" : nil)
                 }
             }
             #else
@@ -73,6 +84,7 @@ struct RecordEditorView: View {
                         showCloudSettings = true
                     }
                     .disabled(isSharedReadOnly)
+                    .help(isWaitingForShareAttachment ? "Waiting for share acceptance" : nil)
                 }
             }
             #endif
@@ -498,3 +510,4 @@ struct RecordEditorView: View {
     }
     .modelContainer(for: MedicalRecord.self, inMemory: true)
 }
+
