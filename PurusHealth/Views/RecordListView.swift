@@ -140,7 +140,7 @@ struct RecordListView: View {
                 let record = records[index]
 
                 // If this record participates in CloudKit (owner or shared), delete from CloudKit first.
-                if record.isCloudEnabled || record.isSharingEnabled || record.cloudShareRecordName != nil {
+                if record.isCloudEnabled || record.isSharingEnabled || record.cloudShareRecordName != nil || record.cloudRecordName != nil {
                     do {
                         try await CloudSyncService.shared.deleteSyncRecord(forLocalRecord: record)
                         SharedImportSuppression.suppress(record.uuid)
