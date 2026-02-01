@@ -83,9 +83,7 @@ final class CloudSyncService {
                     ShareDebugStore.shared.appendLog("migrateRootRecordToShareZoneIfNeeded: found legacy default-zone record id=\(legacy.recordID.recordName); migrating to zone=\(shareZoneName)")
 
                     let migrated = CKRecord(recordType: medicalRecordType, recordID: zonedID)
-                    for key in legacy.allKeys() {
-                        migrated[key] = legacy[key]
-                    }
+                    // Only write supported fields to avoid schema errors in Production
                     applyMedicalRecord(record, to: migrated)
 
                     _ = try await database.save(migrated)
@@ -694,11 +692,8 @@ final class CloudSyncService {
         // Simple versioning to allow future schema changes
         ckRecord["schemaVersion"] = 1 as NSNumber
 
-        // Tombstone for deletions and flags for sharing
-        // Removed isDeleted field due to production schema issues
-        // ckRecord["isDeleted"] = record.isDeleted as NSNumber
-        // Mirror isSharingEnabled as Int64 (0/1) to match CloudKit Production schema
-        ckRecord["isSharingEnabled"] = NSNumber(value: record.isSharingEnabled ? Int64(1) : Int64(0))
+        // Tombstone/flags are tracked locally; avoid mirroring to CloudKit to prevent schema drift
+        // Intentionally not writing isDeleted / isSharingEnabled fields to CloudKit
     }
 
     private func enrichCloudKitError(_ error: Error) -> Error {
