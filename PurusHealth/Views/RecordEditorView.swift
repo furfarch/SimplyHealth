@@ -37,7 +37,7 @@ struct RecordEditorView: View {
             } else {
                 Form {
                     if isEditing {
-                        editorForm
+                        editorForm.disabled(isSharedReadOnly)
                     } else {
                         viewerFormList
                     }
@@ -49,18 +49,22 @@ struct RecordEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task { await refreshSharePermission() }
+        .onReceive(NotificationCenter.default.publisher(for: NotificationNames.didImportRecords)) { _ in
+            Task { await refreshSharePermission() }
+        }
         .onChange(of: record.cloudShareRecordName) { _, _ in Task { await refreshSharePermission() } }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(isEditing ? "Done" : "Edit") {
-                    if isEditing {
-                        saveAndFinishEditing()
-                    } else {
-                        isEditing = true
+                if !isSharedReadOnly {
+                    Button(isEditing ? "Done" : "Edit") {
+                        if isEditing {
+                            saveAndFinishEditing()
+                        } else {
+                            isEditing = true
+                        }
                     }
+                    .help(isWaitingForShareAttachment ? "Waiting for share acceptance" : "")
                 }
-                .disabled(isSharedReadOnly)
-                .help(isWaitingForShareAttachment ? "Waiting for share acceptance" : "")
             }
 
             #if os(iOS) || targetEnvironment(macCatalyst)
@@ -504,6 +508,11 @@ struct RecordEditorView: View {
 
     @MainActor
     private func touchAndSave() {
+        if isSharedReadOnly {
+            // Do not allow local mutations to be persisted for read-only shares
+            saveErrorMessage = "You don't have permission to edit this shared record."
+            return
+        }
         record.updatedAt = Date()
         do {
             try modelContext.save()

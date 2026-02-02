@@ -15,6 +15,7 @@ struct RecordListView: View {
     @State private var showAbout: Bool = false
     @State private var showSettings: Bool = false
     @State private var saveErrorMessage: String?
+    @State private var isRefreshing: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -22,7 +23,9 @@ struct RecordListView: View {
                 listContent
             }
             .refreshable {
+                isRefreshing = true
                 await refreshFromCloud()
+                isRefreshing = false
             }
             .navigationTitle("Purus Health")
             .toolbar {
@@ -97,6 +100,10 @@ struct RecordListView: View {
                 }
                 #endif
             }
+            .task {
+                await CloudKitMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID).ensurePrivateDBSubscription()
+                await ensureSharedDBSubscription(containerIdentifier: AppConfig.CloudKit.containerID)
+            }
             .sheet(item: $activeRecord, onDismiss: { activeRecord = nil; startEditing = false }) { record in
                 NavigationStack {
                     RecordEditorView(record: record, startEditing: startEditing)
@@ -108,6 +115,22 @@ struct RecordListView: View {
                 Button("OK", role: .cancel) { saveErrorMessage = nil }
             } message: {
                 Text(saveErrorMessage ?? "Unknown error")
+            }
+            .overlay {
+                if isRefreshing {
+                    ZStack {
+                        Color.black.opacity(0.2).ignoresSafeArea()
+                        VStack(spacing: 8) {
+                            ProgressView()
+                            Text("Syncing…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(16)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
             }
         }
     }
@@ -201,35 +224,41 @@ struct RecordListView: View {
 
     @MainActor
     private func refreshFromCloud() async {
-        // Only perform a cloud refresh if there is at least one record that participates in cloud.
-        // This keeps cloud sync OFF by default for all-local users.
         let wantsCloudRefresh = allRecords.contains(where: { $0.isCloudEnabled || $0.locationStatus == .shared })
         guard wantsCloudRefresh else { return }
 
-        // First, push any local changes to CloudKit for cloud-enabled records
+        // Push local changes for cloud-enabled records first
         let cloudEnabledRecords = allRecords.filter { $0.isCloudEnabled }
         for record in cloudEnabledRecords {
             do {
                 try await CloudSyncService.shared.syncIfNeeded(record: record)
             } catch {
-                // Best-effort: log error but continue syncing other records
                 ShareDebugStore.shared.appendLog("RecordListView: refresh upload sync failed for \(record.uuid): \(error)")
             }
         }
-        
-        // Then, fetch changes from CloudKit (download)
-        let fetcher = CloudKitMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
-        fetcher.fetchChanges()
 
-        // Also pull shared records (if any) so changes from others can appear.
-        // Use zone-based fetcher for more reliable shared record retrieval
+        // Ensure subscriptions exist so future changes arrive
+        await CloudKitMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID).ensurePrivateDBSubscription()
+        await ensureSharedDBSubscription(containerIdentifier: AppConfig.CloudKit.containerID)
+
+        // Download changes from private zone using async API for determinism
+        let privateFetcher = CloudKitMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
+        do {
+            _ = try await privateFetcher.fetchAllAsync()
+        } catch {
+            ShareDebugStore.shared.appendLog("RecordListView: private fetch failed: \(error)")
+        }
+
         do {
             let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
             _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
         } catch {
-            // Best-effort; don't fail refresh UI.
             ShareDebugStore.shared.appendLog("RecordListView: refresh shared fetch failed: \(error)")
         }
+
+        // Nudge UI to update immediately (particularly for deletions)
+        modelContext.processPendingChanges()
+        NotificationCenter.default.post(name: NotificationNames.didImportRecords, object: nil)
     }
 }
 

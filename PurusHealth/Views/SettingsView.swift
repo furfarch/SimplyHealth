@@ -33,11 +33,13 @@ struct SettingsView: View {
                         Label("iCloud Sync and Sharing of Records", systemImage: "icloud")
                     }
 
+                    /*
                     NavigationLink {
                         DiagnosticsView()
                     } label: {
                         Label("Diagnostics", systemImage: "wrench.and.screwdriver")
                     }
+                    */
 
                     HStack {
                         Text("Status")

@@ -29,6 +29,19 @@ struct AboutView: View {
         return "v\(v) (build \(b))"
     }
 
+    private var yearMonthStamp: String {
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM"
+        return formatter.string(from: now)
+    }
+
+    private var buildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+    }
+
     private func mapAccountStatus(_ s: CKAccountStatus) -> String {
         switch s {
         case .available: return "Available"
@@ -55,7 +68,7 @@ struct AboutView: View {
                 Text("Purus Health")
                     .font(.title)
                     .bold()
-                Text("Build: 2026-01, by furfarch")
+                Text("Build: \(yearMonthStamp) • build \(buildNumber) • by furfarch")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -65,6 +78,7 @@ struct AboutView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
 
+                /*
                 // Runtime diagnostics (visible in About so TestFlight / user can report)
                 VStack(alignment: .leading, spacing: 6) {
                     Divider()
@@ -82,6 +96,7 @@ struct AboutView: View {
                     }
                 }
                 .padding(.horizontal)
+                */
 
                 Spacer()
             }

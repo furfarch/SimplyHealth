@@ -8,6 +8,7 @@ struct ImportShareView: View {
     @State private var urlString: String = ""
     @State private var isImporting: Bool = false
     @State private var statusMessage: String?
+    @State private var progress: Double? = nil
 
     var body: some View {
         NavigationView {
@@ -33,7 +34,14 @@ struct ImportShareView: View {
                     Button("Cancel") { dismiss() }
                     Spacer()
                     Button(action: importAction) {
-                        if isImporting { ProgressView() } else { Text("Import") }
+                        if isImporting {
+                            HStack(spacing: 8) {
+                                ProgressView(value: progress)
+                                Text("Importing…")
+                            }
+                        } else {
+                            Text("Import")
+                        }
                     }
                     .disabled(isImporting || urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -41,6 +49,27 @@ struct ImportShareView: View {
             .padding()
             .frame(minWidth: 480)
             .navigationTitle("Import Share URL")
+            .overlay(alignment: .bottom) {
+                if isImporting {
+                    HStack(spacing: 8) {
+                        if let p = progress {
+                            ProgressView(value: p)
+                                .frame(width: 80)
+                        } else {
+                            ProgressView()
+                        }
+                        Text(statusMessage ?? "Importing shared record…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .padding(.bottom, 16)
+                    .accessibilityLabel("Importing shared record")
+                }
+            }
         }
     }
 
@@ -51,13 +80,21 @@ struct ImportShareView: View {
         }
 
         isImporting = true
-        statusMessage = "Importing…"
+        progress = nil
+        statusMessage = "Starting…"
 
         Task { @MainActor in
+            // Accept the share and then fetch shared zones to materialize data
             await CloudKitShareAcceptanceService.shared.acceptShare(from: url, modelContext: modelContext)
-            statusMessage = "Import complete"
+            statusMessage = "Fetching shared data…"
+            do {
+                let sharedFetcher = CloudKitSharedZoneMedicalRecordFetcher(containerIdentifier: AppConfig.CloudKit.containerID, modelContext: modelContext)
+                _ = try await sharedFetcher.fetchAllSharedAcrossZonesAsync()
+                statusMessage = "Import complete"
+            } catch {
+                statusMessage = "Import failed: \(error.localizedDescription)"
+            }
             isImporting = false
-            // Keep the sheet open so user can see message; they can close manually.
         }
     }
 }
