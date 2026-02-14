@@ -743,6 +743,34 @@ final class CloudSyncService {
         let note: String
     }
     
+    private struct CodableWeightEntry: Codable {
+        let uuid: String
+        let createdAt: Double
+        let updatedAt: Double
+        let date: Double?
+        let weightKg: Double?
+        let comment: String
+    }
+    
+    private struct CodablePetYearlyCostEntry: Codable {
+        let uuid: String
+        let createdAt: Double
+        let updatedAt: Double
+        let date: Double
+        let year: Int
+        let category: String
+        let amount: Double
+        let note: String
+    }
+    
+    private struct CodableEmergencyContact: Codable {
+        let id: String
+        let name: String
+        let phone: String
+        let email: String
+        let note: String
+    }
+    
     private func applyMedicalRecord(_ record: MedicalRecord, to ckRecord: CKRecord) {
         ckRecord["uuid"] = record.uuid as NSString
         ckRecord["createdAt"] = record.createdAt as NSDate
@@ -837,6 +865,24 @@ final class CloudSyncService {
         let codableDoctors = record.humanDoctors.map { CodableHumanDoctorEntry(uuid: $0.uuid, createdAt: $0.createdAt.timeIntervalSince1970, updatedAt: $0.updatedAt.timeIntervalSince1970, type: $0.type, name: $0.name, phone: $0.phone, email: $0.email, address: $0.address, note: $0.note) }
         if let doctorsJSON = try? JSONEncoder().encode(codableDoctors), let doctorsString = String(data: doctorsJSON, encoding: .utf8) {
             ckRecord["humanDoctorEntries"] = doctorsString as NSString
+        }
+        
+        // Weight entries
+        let codableWeights = record.weights.map { CodableWeightEntry(uuid: $0.uuid, createdAt: $0.createdAt.timeIntervalSince1970, updatedAt: $0.updatedAt.timeIntervalSince1970, date: $0.date?.timeIntervalSince1970, weightKg: $0.weightKg, comment: $0.comment) }
+        if let weightsJSON = try? JSONEncoder().encode(codableWeights), let weightsString = String(data: weightsJSON, encoding: .utf8) {
+            ckRecord["weightEntries"] = weightsString as NSString
+        }
+        
+        // Pet yearly cost entries
+        let codablePetCosts = record.petYearlyCosts.map { CodablePetYearlyCostEntry(uuid: $0.uuid, createdAt: $0.createdAt.timeIntervalSince1970, updatedAt: $0.updatedAt.timeIntervalSince1970, date: $0.date.timeIntervalSince1970, year: $0.year, category: $0.category, amount: $0.amount, note: $0.note) }
+        if let petCostsJSON = try? JSONEncoder().encode(codablePetCosts), let petCostsString = String(data: petCostsJSON, encoding: .utf8) {
+            ckRecord["petYearlyCostEntries"] = petCostsString as NSString
+        }
+        
+        // Emergency contacts
+        let codableEmergencyContacts = record.emergencyContacts.map { CodableEmergencyContact(id: $0.id.uuidString, name: $0.name, phone: $0.phone, email: $0.email, note: $0.note) }
+        if let emergencyContactsJSON = try? JSONEncoder().encode(codableEmergencyContacts), let emergencyContactsString = String(data: emergencyContactsJSON, encoding: .utf8) {
+            ckRecord["emergencyContactEntries"] = emergencyContactsString as NSString
         }
 
         // Simple versioning to allow future schema changes

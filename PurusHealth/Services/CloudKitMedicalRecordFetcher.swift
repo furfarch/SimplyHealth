@@ -69,6 +69,34 @@ private struct CodableHumanDoctorEntry: Codable {
     let note: String
 }
 
+private struct CodableWeightEntry: Codable {
+    let uuid: String
+    let createdAt: Double
+    let updatedAt: Double
+    let date: Double?
+    let weightKg: Double?
+    let comment: String
+}
+
+private struct CodablePetYearlyCostEntry: Codable {
+    let uuid: String
+    let createdAt: Double
+    let updatedAt: Double
+    let date: Double
+    let year: Int
+    let category: String
+    let amount: Double
+    let note: String
+}
+
+private struct CodableEmergencyContact: Codable {
+    let id: String
+    let name: String
+    let phone: String
+    let email: String
+    let note: String
+}
+
 @MainActor
 /// Fetches MedicalRecord records from CloudKit (private database by default).
 class CloudKitMedicalRecordFetcher: ObservableObject {
@@ -501,6 +529,42 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
                 }
                 record.humanDoctors = codableDoctors.map { codable in
                     HumanDoctorEntry(uuid: codable.uuid, createdAt: Date(timeIntervalSince1970: codable.createdAt), updatedAt: Date(timeIntervalSince1970: codable.updatedAt), type: codable.type, name: codable.name, phone: codable.phone, email: codable.email, address: codable.address, note: codable.note, record: record)
+                }
+            }
+            
+            // Weight entries
+            if let weightsString = ckRecord["weightEntries"] as? String,
+               let weightsData = weightsString.data(using: .utf8),
+               let codableWeights = try? JSONDecoder().decode([CodableWeightEntry].self, from: weightsData) {
+                for entry in record.weights {
+                    context.delete(entry)
+                }
+                record.weights = codableWeights.map { codable in
+                    WeightEntry(uuid: codable.uuid, createdAt: Date(timeIntervalSince1970: codable.createdAt), updatedAt: Date(timeIntervalSince1970: codable.updatedAt), date: codable.date.map { Date(timeIntervalSince1970: $0) }, weightKg: codable.weightKg, comment: codable.comment, record: record)
+                }
+            }
+            
+            // Pet yearly cost entries
+            if let petCostsString = ckRecord["petYearlyCostEntries"] as? String,
+               let petCostsData = petCostsString.data(using: .utf8),
+               let codablePetCosts = try? JSONDecoder().decode([CodablePetYearlyCostEntry].self, from: petCostsData) {
+                for entry in record.petYearlyCosts {
+                    context.delete(entry)
+                }
+                record.petYearlyCosts = codablePetCosts.map { codable in
+                    PetYearlyCostEntry(uuid: codable.uuid, createdAt: Date(timeIntervalSince1970: codable.createdAt), updatedAt: Date(timeIntervalSince1970: codable.updatedAt), date: Date(timeIntervalSince1970: codable.date), year: codable.year, category: codable.category, amount: codable.amount, note: codable.note, record: record)
+                }
+            }
+            
+            // Emergency contacts
+            if let emergencyContactsString = ckRecord["emergencyContactEntries"] as? String,
+               let emergencyContactsData = emergencyContactsString.data(using: .utf8),
+               let codableEmergencyContacts = try? JSONDecoder().decode([CodableEmergencyContact].self, from: emergencyContactsData) {
+                for entry in record.emergencyContacts {
+                    context.delete(entry)
+                }
+                record.emergencyContacts = codableEmergencyContacts.map { codable in
+                    EmergencyContact(id: UUID(uuidString: codable.id) ?? UUID(), name: codable.name, phone: codable.phone, email: codable.email, note: codable.note, record: record)
                 }
             }
 
