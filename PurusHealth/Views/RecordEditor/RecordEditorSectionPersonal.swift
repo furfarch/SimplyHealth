@@ -4,6 +4,9 @@ import SwiftData
 struct RecordEditorSectionPersonal: View {
     @Bindable var record: MedicalRecord
     let onChange: () -> Void
+    
+    // Gender/Sex options
+    private let genderOptions = ["", "Male", "Female", "N/A"]
 
     var body: some View {
         if record.isPet {
@@ -15,15 +18,21 @@ struct RecordEditorSectionPersonal: View {
                 DatePicker(
                     "Date of Birth",
                     selection: Binding(
-                        get: { record.petDateOfBirth ?? Date() },
-                        set: { record.petDateOfBirth = $0 }
+                        get: { record.personalBirthdate ?? Date() },
+                        set: { record.personalBirthdate = $0 }
                     ),
                     displayedComponents: .date
                 )
                 
                 TextField("Breed", text: $record.petBreed)
                 TextField("Color", text: $record.petColor)
-                TextField("Sex", text: $record.petSex)
+                
+                Picker("Sex", selection: $record.personalGender) {
+                    ForEach(genderOptions, id: \.self) { option in
+                        Text(option.isEmpty ? "Not specified" : option).tag(option)
+                    }
+                }
+                
                 TextField("Owner Name", text: $record.ownerName)
                 TextField("Owner Phone", text: $record.ownerPhone)
                 TextField("Owner Email", text: $record.ownerEmail)
@@ -32,10 +41,10 @@ struct RecordEditorSectionPersonal: View {
             }
             .onChange(of: record.personalName) { onChange() }
             .onChange(of: record.personalAnimalID) { onChange() }
-            .onChange(of: record.petDateOfBirth) { onChange() }
+            .onChange(of: record.personalBirthdate) { onChange() }
             .onChange(of: record.petBreed) { onChange() }
             .onChange(of: record.petColor) { onChange() }
-            .onChange(of: record.petSex) { onChange() }
+            .onChange(of: record.personalGender) { onChange() }
             .onChange(of: record.ownerName) { onChange() }
             .onChange(of: record.ownerPhone) { onChange() }
             .onChange(of: record.ownerEmail) { onChange() }
@@ -44,7 +53,12 @@ struct RecordEditorSectionPersonal: View {
                 TextField("Family Name", text: $record.personalFamilyName)
                 TextField("Given Name", text: $record.personalGivenName)
                 TextField("Name", text: $record.personalNickName)
-                TextField("Gender", text: $record.personalGender)
+                
+                Picker("Gender", selection: $record.personalGender) {
+                    ForEach(genderOptions, id: \.self) { option in
+                        Text(option.isEmpty ? "Not specified" : option).tag(option)
+                    }
+                }
 
                 DatePicker(
                     "Birthdate",

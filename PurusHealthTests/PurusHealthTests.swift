@@ -177,25 +177,25 @@ struct PurusHealthTests {
         
         // Test initial values
         #expect(record.personalName == "")
-        #expect(record.petDateOfBirth == nil)
+        #expect(record.personalBirthdate == nil)
         #expect(record.petBreed == "")
         #expect(record.petColor == "")
-        #expect(record.petSex == "")
+        #expect(record.personalGender == "")
         
         // Set pet-specific fields
         record.personalName = "Max"
         let birthdate = Date(timeIntervalSince1970: 1577836800) // Jan 1, 2020
-        record.petDateOfBirth = birthdate
+        record.personalBirthdate = birthdate
         record.petBreed = "Golden Retriever"
         record.petColor = "Golden"
-        record.petSex = "Male"
+        record.personalGender = "Male"
         
         // Verify fields are set correctly
         #expect(record.personalName == "Max")
-        #expect(record.petDateOfBirth == birthdate)
+        #expect(record.personalBirthdate == birthdate)
         #expect(record.petBreed == "Golden Retriever")
         #expect(record.petColor == "Golden")
-        #expect(record.petSex == "Male")
+        #expect(record.personalGender == "Male")
     }
 
     @Test @MainActor func testPetFieldsPersistence() async throws {
@@ -217,10 +217,10 @@ struct PurusHealthTests {
             record.uuid = testUUID
             record.isPet = true
             record.personalName = "Bella"
-            record.petDateOfBirth = birthdate
+            record.personalBirthdate = birthdate
             record.petBreed = "Labrador"
             record.petColor = "Black"
-            record.petSex = "Female"
+            record.personalGender = "Female"
 
             context1.insert(record)
             try context1.save()
@@ -239,16 +239,45 @@ struct PurusHealthTests {
             if let record = records.first {
                 #expect(record.isPet == true)
                 #expect(record.personalName == "Bella")
-                #expect(record.petDateOfBirth == birthdate)
+                #expect(record.personalBirthdate == birthdate)
                 #expect(record.petBreed == "Labrador")
                 #expect(record.petColor == "Black")
-                #expect(record.petSex == "Female")
+                #expect(record.personalGender == "Female")
                 
                 // Cleanup
                 context2.delete(record)
                 try context2.save()
             }
         }
+    }
+
+    @Test func testGenderSexOptions() async throws {
+        // Test human gender field
+        let human = MedicalRecord()
+        human.isPet = false
+        human.personalGender = "Male"
+        #expect(human.personalGender == "Male")
+        
+        human.personalGender = "Female"
+        #expect(human.personalGender == "Female")
+        
+        human.personalGender = "N/A"
+        #expect(human.personalGender == "N/A")
+        
+        human.personalGender = ""
+        #expect(human.personalGender == "")
+        
+        // Test pet sex field (uses same personalGender)
+        let pet = MedicalRecord()
+        pet.isPet = true
+        pet.personalGender = "Male"
+        #expect(pet.personalGender == "Male")
+        
+        pet.personalGender = "Female"
+        #expect(pet.personalGender == "Female")
+        
+        pet.personalGender = "N/A"
+        #expect(pet.personalGender == "N/A")
     }
 
     @Test func testSortKeyOrdering() async throws {

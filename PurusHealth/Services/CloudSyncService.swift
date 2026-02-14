@@ -702,14 +702,8 @@ final class CloudSyncService {
 
         ckRecord["personalName"] = record.personalName as NSString
         ckRecord["personalAnimalID"] = record.personalAnimalID as NSString
-        if let petDateOfBirth = record.petDateOfBirth {
-            ckRecord["petDateOfBirth"] = petDateOfBirth as NSDate
-        } else {
-            ckRecord["petDateOfBirth"] = nil
-        }
         ckRecord["petBreed"] = record.petBreed as NSString
         ckRecord["petColor"] = record.petColor as NSString
-        ckRecord["petSex"] = record.petSex as NSString
         ckRecord["ownerName"] = record.ownerName as NSString
         ckRecord["ownerPhone"] = record.ownerPhone as NSString
         ckRecord["ownerEmail"] = record.ownerEmail as NSString

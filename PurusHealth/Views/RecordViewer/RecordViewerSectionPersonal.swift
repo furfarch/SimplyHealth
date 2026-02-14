@@ -8,10 +8,10 @@ struct RecordViewerSectionPersonal: View {
             if record.isPet {
                 RecordViewerRow(title: "Name", value: record.personalName)
                 RecordViewerRow(title: "Animal ID (ANIS)", value: record.personalAnimalID)
-                RecordViewerDateRow(title: "Date of Birth", value: record.petDateOfBirth)
+                RecordViewerDateRow(title: "Date of Birth", value: record.personalBirthdate)
                 RecordViewerRow(title: "Breed", value: record.petBreed)
                 RecordViewerRow(title: "Color", value: record.petColor)
-                RecordViewerRow(title: "Sex", value: record.petSex)
+                RecordViewerRow(title: "Sex", value: record.personalGender)
                 RecordViewerRow(title: "Owner Name", value: record.ownerName)
                 RecordViewerRow(title: "Owner Phone", value: record.ownerPhone)
                 RecordViewerRow(title: "Owner Email", value: record.ownerEmail)
