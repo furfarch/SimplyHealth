@@ -29,6 +29,8 @@ final class MedicalRecord {
     var isPet: Bool = false
     var personalName: String = ""
     var personalAnimalID: String = ""
+    var petBreed: String = ""
+    var petColor: String = ""
     var ownerName: String = ""
     var ownerPhone: String = ""
     var ownerEmail: String = ""
@@ -249,6 +251,8 @@ final class MedicalRecord {
         isPet: Bool = false,
         personalName: String = "",
         personalAnimalID: String = "",
+        petBreed: String = "",
+        petColor: String = "",
         ownerName: String = "",
         ownerPhone: String = "",
         ownerEmail: String = "",
@@ -300,6 +304,8 @@ final class MedicalRecord {
         self.isPet = isPet
         self.personalName = personalName
         self.personalAnimalID = personalAnimalID
+        self.petBreed = petBreed
+        self.petColor = petColor
         self.ownerName = ownerName
         self.ownerPhone = ownerPhone
         self.ownerEmail = ownerEmail

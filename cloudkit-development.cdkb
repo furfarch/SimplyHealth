@@ -28,6 +28,8 @@ DEFINE SCHEMA
 
         personalName                    STRING,
         personalAnimalID                STRING,
+        petBreed                        STRING,
+        petColor                        STRING,
         ownerName                       STRING,
         ownerPhone                      STRING,
         ownerEmail                      STRING,

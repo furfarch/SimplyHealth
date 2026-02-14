@@ -312,6 +312,8 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
 
             record.personalName = ckRecord["personalName"] as? String ?? ""
             record.personalAnimalID = ckRecord["personalAnimalID"] as? String ?? ""
+            record.petBreed = ckRecord["petBreed"] as? String ?? ""
+            record.petColor = ckRecord["petColor"] as? String ?? ""
             record.ownerName = ckRecord["ownerName"] as? String ?? ""
             record.ownerPhone = ckRecord["ownerPhone"] as? String ?? ""
             record.ownerEmail = ckRecord["ownerEmail"] as? String ?? ""
