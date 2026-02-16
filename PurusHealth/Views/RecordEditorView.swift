@@ -522,10 +522,7 @@ struct RecordEditorView: View {
                     do {
                         try await CloudSyncService.shared.syncIfNeeded(record: record)
                     } catch {
-                        // Surface sync errors to user so they can see what's wrong
-                        await MainActor.run {
-                            saveErrorMessage = "Sync failed: \(error.localizedDescription)"
-                        }
+                        // Log error for debugging but don't show to user in production
                         ShareDebugStore.shared.appendLog("RecordEditorView: auto-sync failed after save: \(error)")
                     }
                 }
