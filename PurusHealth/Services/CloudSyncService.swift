@@ -112,13 +112,24 @@ final class CloudSyncService {
     // MARK: - Sync
 
     func syncIfNeeded(record: MedicalRecord) async throws {
-        guard record.isCloudEnabled else { return }
+        // Diagnostic logging
+        print("[CloudSync] syncIfNeeded called for record: \(record.uuid)")
+        print("[CloudSync] isCloudEnabled: \(record.isCloudEnabled)")
+        
+        guard record.isCloudEnabled else {
+            print("[CloudSync] EARLY RETURN: isCloudEnabled is false")
+            return
+        }
 
         // Do not resurrect locally deleted records
-        if record.isMarkedForDeletion == true { return }
+        if record.isMarkedForDeletion == true {
+            print("[CloudSync] EARLY RETURN: isMarkedForDeletion is true")
+            return
+        }
 
         // Check iCloud account availability
         let status = try await accountStatus()
+        print("[CloudSync] iCloud account status: \(status)")
         guard status == .available else {
             let err = NSError(
                 domain: "CloudSyncService",
@@ -127,10 +138,13 @@ final class CloudSyncService {
             )
 
             ShareDebugStore.shared.appendLog("syncIfNeeded: account not available for record=\(record.uuid) status=\(status)")
+            print("[CloudSync] THROWING ERROR: account not available")
             throw err
         }
 
+        print("[CloudSync] About to ensure share zone exists")
         try await ensureShareZoneExists()
+        print("[CloudSync] Share zone exists")
 
         // If this record is part of a CloudKit share, attempt to write back to the shared database
         // so receivers with write permission can sync their edits back to the owner and other participants.
@@ -151,26 +165,35 @@ final class CloudSyncService {
             }
         }
 
+        print("[CloudSync] About to migrate to share zone if needed")
         try await migrateRootRecordToShareZoneIfNeeded(record: record)
 
         let ckID = zonedRecordID(for: record)
+        print("[CloudSync] CloudKit record ID: \(ckID.recordName)")
 
         let ckRecord: CKRecord
         do {
+            print("[CloudSync] Attempting to fetch existing CloudKit record")
             ckRecord = try await database.record(for: ckID)
+            print("[CloudSync] Found existing CloudKit record")
         } catch {
+            print("[CloudSync] No existing record, creating new CKRecord")
             ckRecord = CKRecord(recordType: medicalRecordType, recordID: ckID)
         }
 
+        print("[CloudSync] Applying MedicalRecord data to CKRecord")
         applyMedicalRecord(record, to: ckRecord)
+        print("[CloudSync] Data applied, attempting to save to CloudKit")
 
         do {
             let saved = try await database.save(ckRecord)
 
             // Persist back CloudKit identity and mark success
             record.cloudRecordName = saved.recordID.recordName
+            print("[CloudSync] SUCCESS: Saved to CloudKit")
             ShareDebugStore.shared.appendLog("syncIfNeeded: saved id=\(saved.recordID.recordName) zone=\(shareZoneName) type=\(saved.recordType) for local uuid=\(record.uuid)")
         } catch {
+            print("[CloudSync] FAILED to save: \(error)")
             ShareDebugStore.shared.appendLog("syncIfNeeded: failed to save record=\(record.uuid) error=\(error)")
             throw enrichCloudKitError(error)
         }
