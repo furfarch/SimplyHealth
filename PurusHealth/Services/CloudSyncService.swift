@@ -242,15 +242,17 @@ final class CloudSyncService {
         record.isCloudEnabled = false
         record.isSharingEnabled = false
 
-        // Best-effort cleanup in CloudKit (share + root record).
+        // Create tombstone in CloudKit to remove from all other synced devices.
+        // This makes "Set Local" behave like "Stop Sharing" - removes from all devices except this one.
         Task {
             do {
-                try await revokeSharingAndDeleteFromCloud(record: record)
+                try await createTombstone(for: record)
+                ShareDebugStore.shared.appendLog("disableCloud: created tombstone to remove from other devices uuid=\(record.uuid)")
             } catch {
-                ShareDebugStore.shared.appendLog("disableCloud: cleanup failed for record=\(record.uuid) error=\(error)")
+                ShareDebugStore.shared.appendLog("disableCloud: tombstone creation failed uuid=\(record.uuid) error=\(error)")
             }
 
-            // OFF means: this record is not on iCloud. Clear local CloudKit identifiers.
+            // Clear CloudKit identifiers locally
             record.cloudRecordName = nil
             record.cloudShareRecordName = nil
             record.shareParticipantsSummary = ""
@@ -588,6 +590,25 @@ final class CloudSyncService {
 #endif
 
     // MARK: - Deletion
+    
+    /// Creates a minimal tombstone record in CloudKit with only deletion metadata.
+    /// This ensures devices that sync weeks/months later still see the deletion.
+    /// Storage: ~100 bytes vs 5-50 KB for full record (99% reduction)
+    private func createTombstone(for record: MedicalRecord) async throws {
+        try await ensureShareZoneExists()
+        let ckID = zonedRecordID(for: record)
+        let ckRecord = CKRecord(recordType: medicalRecordType, recordID: ckID)
+        
+        // Minimal data - only deletion metadata, no personal/medical information
+        ckRecord["uuid"] = record.uuid as NSString
+        ckRecord["isDeleted"] = 1 as NSNumber
+        ckRecord["deletedAt"] = Date() as NSDate
+        ckRecord["updatedAt"] = Date() as NSDate
+        ckRecord["schemaVersion"] = 1 as NSNumber
+        
+        _ = try await database.save(ckRecord)
+        ShareDebugStore.shared.appendLog("[CloudSyncService] Created tombstone uuid=\(record.uuid)")
+    }
 
     // Convenience compatibility wrapper for earlier API name
     func deleteCloudRecord(for record: MedicalRecord) async throws {
@@ -608,71 +629,22 @@ final class CloudSyncService {
                     ShareDebugStore.shared.appendLog("[CloudSyncService] CKShare already missing id=\(shareRecordName) zone=\(shareZoneName)")
                 } else {
                     ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting CKShare id=\(shareRecordName) zone=\(shareZoneName): \(error)")
-                    // don't block root deletion on share cleanup
+                    // don't block tombstone creation on share cleanup
                 }
             }
             record.cloudShareRecordName = nil
         }
 
-        // Root records live in the share zone.
-        let ckID = zonedRecordID(for: record)
-
-        // First try to delete by record ID directly
-        do {
-            let deleted = try await database.deleteRecord(withID: ckID)
-            ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit root id=\(deleted.recordName) zone=\(shareZoneName) for local uuid=\(record.uuid)")
-
-            // Mark locally so future syncs don't recreate it
-            record.isCloudEnabled = false
-            record.isSharingEnabled = false
-            record.updatedAt = Date()
-            return
-        } catch {
-            ShareDebugStore.shared.appendLog("[CloudSyncService] Direct zoned delete failed id=\(ckID.recordName) zone=\(shareZoneName): \(error)")
-            // fall through to query-by-uuid in the same zone
-        }
-
-        // Fallback: delete by matching uuid field (must query the same custom zone)
-        let predicate = NSPredicate(format: "uuid == %@", record.uuid)
-        let query = CKQuery(recordType: medicalRecordType, predicate: predicate)
-
-        let idsToDelete: [CKRecord.ID] = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[CKRecord.ID], Error>) in
-            var foundIDs: [CKRecord.ID] = []
-            let op = CKQueryOperation(query: query)
-            op.zoneID = shareZoneID
-            op.recordMatchedBlock = { (_: CKRecord.ID, matchedResult: Result<CKRecord, Error>) in
-                switch matchedResult {
-                case .success(let rec): foundIDs.append(rec.recordID)
-                case .failure(let err): cont.resume(throwing: err)
-                }
-            }
-            op.queryResultBlock = { result in
-                switch result {
-                case .success: cont.resume(returning: foundIDs)
-                case .failure(let err): cont.resume(throwing: err)
-                }
-            }
-            database.add(op)
-        }
-
-        if !idsToDelete.isEmpty {
-            for id in idsToDelete {
-                do {
-                    let deleted = try await database.deleteRecord(withID: id)
-                    ShareDebugStore.shared.appendLog("[CloudSyncService] Deleted CloudKit record id=\(deleted.recordName) via uuid match zone=\(shareZoneName) local uuid=\(record.uuid)")
-                } catch {
-                    ShareDebugStore.shared.appendLog("[CloudSyncService] Failed deleting matched CloudKit record id=\(id.recordName): \(error)")
-                    throw enrichCloudKitError(error)
-                }
-            }
-        } else {
-            ShareDebugStore.shared.appendLog("[CloudSyncService] No CloudKit record found for uuid=\(record.uuid) in zone=\(shareZoneName)")
-        }
-
-        // Ensure local cloud identifiers are cleared after deletion
+        // Create tombstone instead of deleting entirely
+        // This ensures devices that sync weeks/months later still see the deletion
+        try await createTombstone(for: record)
+        
+        // Clear local CloudKit identifiers
         record.cloudRecordName = nil
-        record.cloudShareRecordName = nil
+        record.isSharingEnabled = false
+        record.isCloudEnabled = false
         record.shareParticipantsSummary = ""
+        record.updatedAt = Date()
     }
 
     // MARK: - Mapping

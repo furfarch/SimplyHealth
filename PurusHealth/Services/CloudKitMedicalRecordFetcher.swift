@@ -161,6 +161,12 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
             })
 
             if let existing = (try? context.fetch(fetchDescriptor))?.first {
+                // Protect local-only records from cloud deletions
+                if !existing.isCloudEnabled {
+                    ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: protecting local-only record from cloud deletion uuid=\(existing.uuid)")
+                    continue
+                }
+                
                 context.delete(existing)
                 // Clear suppression on confirmed cloud deletion
                 SharedImportSuppression.clear(existing.uuid)
@@ -277,6 +283,30 @@ class CloudKitMedicalRecordFetcher: ObservableObject {
     func importToSwiftData(context: ModelContext) {
         for ckRecord in records {
             guard let uuid = ckRecord["uuid"] as? String else { continue }
+
+            // Check for deletion tombstone
+            if let isDeletedNum = ckRecord["isDeleted"] as? NSNumber, isDeletedNum.boolValue {
+                ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: found tombstone uuid=\(uuid)")
+                
+                let fetchDescriptor = FetchDescriptor<MedicalRecord>(
+                    predicate: #Predicate { $0.uuid == uuid }
+                )
+                
+                if let existing = (try? context.fetch(fetchDescriptor))?.first {
+                    // Protect local-only records from tombstone deletions
+                    if !existing.isCloudEnabled {
+                        ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: protected local-only record from tombstone uuid=\(uuid)")
+                        continue
+                    }
+                    
+                    // Cloud-enabled record - respect the deletion
+                    ShareDebugStore.shared.appendLog("CloudKitMedicalRecordFetcher: deleting from tombstone uuid=\(uuid)")
+                    context.delete(existing)
+                    SharedImportSuppression.clear(uuid)
+                }
+                
+                continue // Don't import tombstone as data
+            }
 
             let cloudUpdatedAt = (ckRecord["updatedAt"] as? Date) ?? Date.distantPast
 
