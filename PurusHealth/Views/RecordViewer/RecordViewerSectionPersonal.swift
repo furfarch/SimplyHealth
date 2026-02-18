@@ -7,6 +7,7 @@ struct RecordViewerSectionPersonal: View {
         VStack(alignment: .leading, spacing: 0) {
             if record.isPet {
                 RecordViewerRow(title: "Name", value: record.personalName)
+                RecordViewerRow(title: "Breed", value: record.petBred)
                 RecordViewerRow(title: "Animal ID (ANIS)", value: record.personalAnimalID)
                 RecordViewerRow(title: "Owner Name", value: record.ownerName)
                 RecordViewerRow(title: "Owner Phone", value: record.ownerPhone)

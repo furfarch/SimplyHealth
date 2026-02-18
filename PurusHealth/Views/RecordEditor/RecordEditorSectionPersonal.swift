@@ -10,6 +10,7 @@ struct RecordEditorSectionPersonal: View {
             Section {
                 // Use dedicated pet fields in the model
                 TextField("Name", text: $record.personalName)
+                TextField("Breed", text: $record.petBred)
                 TextField("Animal ID (ANIS)", text: $record.personalAnimalID)
                 TextField("Owner Name", text: $record.ownerName)
                 TextField("Owner Phone", text: $record.ownerPhone)
@@ -18,6 +19,7 @@ struct RecordEditorSectionPersonal: View {
                 Label("Pet Information", systemImage: "pawprint")
             }
             .onChange(of: record.personalName) { onChange() }
+            .onChange(of: record.petBred) { onChange() }
             .onChange(of: record.personalAnimalID) { onChange() }
             .onChange(of: record.ownerName) { onChange() }
             .onChange(of: record.ownerPhone) { onChange() }
