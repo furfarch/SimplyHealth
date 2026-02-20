@@ -173,8 +173,8 @@ struct RecordEditorView: View {
             )))
         }
 
-        pages.append(contentsOf: [
-            .init(title: "Blood", content: AnyView(
+        if !record.isPet {
+            pages.append(.init(title: "Blood", content: AnyView(
                 RecordViewerSectionEntries(
                     title: "Blood",
                     columns: ["Date", "Name", "Comment"],
@@ -186,7 +186,10 @@ struct RecordEditorView: View {
                             $0.comment
                         ] }
                 ).padding(.top, 4)
-            )),
+            )))
+        }
+
+        pages.append(contentsOf: [
             .init(title: "Medications", content: AnyView(
                 RecordViewerSectionEntries(
                     title: "Medications",
@@ -210,19 +213,6 @@ struct RecordEditorView: View {
                             $0.date.map { $0.formatted(date: .numeric, time: .omitted) } ?? "—",
                             $0.name,
                             $0.place,
-                            $0.comment
-                        ] }
-                ).padding(.top, 4)
-            )),
-            .init(title: "Allergies", content: AnyView(
-                RecordViewerSectionEntries(
-                    title: "Allergies",
-                    columns: ["Date", "Name", "Comment"],
-                    rows: record.allergy
-                        .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
-                        .map { [
-                            $0.date.map { $0.formatted(date: .numeric, time: .omitted) } ?? "—",
-                            $0.name,
                             $0.comment
                         ] }
                 ).padding(.top, 4)
@@ -281,6 +271,22 @@ struct RecordEditorView: View {
                 ).padding(.top, 4)
             ))
         ])
+
+        if !record.isPet {
+            pages.append(.init(title: "Allergies", content: AnyView(
+                RecordViewerSectionEntries(
+                    title: "Allergies",
+                    columns: ["Date", "Name", "Comment"],
+                    rows: record.allergy
+                        .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
+                        .map { [
+                            $0.date.map { $0.formatted(date: .numeric, time: .omitted) } ?? "—",
+                            $0.name,
+                            $0.comment
+                        ] }
+                ).padding(.top, 4)
+            )))
+        }
 
         if record.isPet {
             pages.append(.init(title: "Costs", content: AnyView(RecordViewerSectionPetYearlyCosts(record: record).padding(.top, 4))))
@@ -345,7 +351,8 @@ struct RecordEditorView: View {
             }
         }
 
-        // E) Blood
+        // E) Blood - not for pets
+        if !record.isPet {
         Section {
             RecordViewerSectionEntries(
                 title: "Blood",
@@ -358,6 +365,7 @@ struct RecordEditorView: View {
                         $0.comment
                     ] }
             )
+        }
         }
 
         // F) Medications
@@ -391,7 +399,8 @@ struct RecordEditorView: View {
             )
         }
 
-        // H) Allergies
+        // H) Allergies - not for pets
+        if !record.isPet {
         Section {
             RecordViewerSectionEntries(
                 title: "Allergies",
@@ -404,6 +413,7 @@ struct RecordEditorView: View {
                         $0.comment
                     ] }
             )
+        }
         }
 
         // I) Illnesses

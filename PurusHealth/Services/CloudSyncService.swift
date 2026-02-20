@@ -597,15 +597,30 @@ final class CloudSyncService {
     private func createTombstone(for record: MedicalRecord) async throws {
         try await ensureShareZoneExists()
         let ckID = zonedRecordID(for: record)
-        let ckRecord = CKRecord(recordType: medicalRecordType, recordID: ckID)
-        
+
+        // Fetch the existing record to obtain its changeTag, required for UPDATE.
+        // Creating a CKRecord from scratch with the same ID results in an INSERT,
+        // which CloudKit rejects with "record to insert already exists" when the
+        // record was previously synced.
+        let ckRecord: CKRecord
+        do {
+            ckRecord = try await database.record(for: ckID)
+        } catch {
+            if let ck = error as? CKError, ck.code == .unknownItem {
+                // Record doesn't exist in CloudKit yet; create a new tombstone record.
+                ckRecord = CKRecord(recordType: medicalRecordType, recordID: ckID)
+            } else {
+                throw error
+            }
+        }
+
         // Minimal data - only deletion metadata, no personal/medical information
         ckRecord["uuid"] = record.uuid as NSString
         ckRecord["isDeleted"] = 1 as NSNumber
         ckRecord["deletedAt"] = Date() as NSDate
         ckRecord["updatedAt"] = Date() as NSDate
         ckRecord["schemaVersion"] = 1 as NSNumber
-        
+
         _ = try await database.save(ckRecord)
         ShareDebugStore.shared.appendLog("[CloudSyncService] Created tombstone uuid=\(record.uuid)")
     }
